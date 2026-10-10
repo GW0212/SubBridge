@@ -110,6 +110,7 @@ async function fetchPage(reset) {
         existing.add(id);
         state.items.push({
           id,
+          subscriptionId: useMine ? (sub.id || null) : null,
           title: sub.snippet?.title || '이름 없는 채널',
           description: sub.snippet?.description || '',
           avatar: avatarOf(sub.snippet),
@@ -163,9 +164,24 @@ async function search(raw) { if (state.busy) return; if (!setting('API_KEY')) { 
     updateSourceModeHint();
   }
 }
+// Search matches channel name, handle, description and channel ID, ignoring spaces,
+// punctuation and letter case; Korean initial-consonant searches are supported.
+const KOREAN_INITIALS='ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+function normalizeSearch(text){return String(text||'').normalize('NFC').toLocaleLowerCase('ko').replace(/[^\p{L}\p{N}]/gu,'');}
+function hangulInitials(text){return Array.from(String(text||'')).map(ch=>{
+  const n=ch.codePointAt(0);
+  return n>=0xAC00&&n<=0xD7A3?KOREAN_INITIALS[Math.floor((n-0xAC00)/588)]:ch;
+}).join('').toLocaleLowerCase('ko').replace(/[^\p{L}\p{N}]/gu,'');}
 function render() {
-  const word=$('filterInput').value.trim().toLocaleLowerCase('ko');
-  let list=state.items.filter(x=>[x.title,x.description].some(t=>t.toLocaleLowerCase('ko').includes(word)));
+  const query=$('filterInput').value.trim();
+  const tokens=query.split(/\s+/).filter(Boolean).map(normalizeSearch);
+  let list=state.items.filter(ch=>{
+    if (!tokens.length) return true;
+    const fields=[ch.title, ch.description, ch.handle || '',ch.id];
+    const normalized=fields.map(normalizeSearch);
+    const initials=hangulInitials(ch.title);
+    return tokens.every(token=>normalized.some(value=>value.includes(token)) || initials.includes(token));
+  });
   switch($('sortSelect').value){case 'nameAsc':list.sort((a,b)=>a.title.localeCompare(b.title,'ko'));break;case 'nameDesc':list.sort((a,b)=>b.title.localeCompare(a.title,'ko'));break;case 'newest':list.sort((a,b)=>Date.parse(b.publishedAt || 0)-Date.parse(a.publishedAt || 0));break;default:list.sort((a,b)=>a.order-b.order);}
   $('filterCount').textContent = list.length.toLocaleString('ko-KR') + '개 표시';
   const root=$('channelGrid');root.replaceChildren();
@@ -178,7 +194,19 @@ function render() {
     const info=document.createElement('div');info.className='card-info';const h=document.createElement('h3');h.textContent=ch.title;h.title=ch.title;const desc=document.createElement('p');desc.textContent=ch.description || '유튜브 채널';desc.title=ch.description;
     info.append(h,desc);top.append(avatar,info);
     const actions=document.createElement('div');actions.className='card-actions';
-    const direct=document.createElement('button');direct.type='button';direct.className='subscribe';direct.textContent=state.subscribed.has(ch.id)?'✓ 구독 중':'바로 구독';direct.disabled=state.subscribed.has(ch.id);if(direct.disabled)direct.classList.add('done');direct.title='Google 계정 인증 후 웹사이트에서 구독';direct.addEventListener('click',()=>subscribe(ch.id,direct));
+    const direct=document.createElement('button');direct.type='button';direct.className='subscribe';
+    const ownerMode=state.viewMine && Boolean(state.token && Date.now()<state.expires);
+    if(ownerMode){
+      direct.textContent='구독 취소';direct.classList.add('unsubscribe');
+      direct.title='이 채널의 구독을 취소합니다 (확인 후 실행)';
+      direct.disabled=!ch.subscriptionId;
+      if(!ch.subscriptionId) direct.title='구독 ID를 가져오지 못했습니다. 새로고침 후 다시 시도하세요.';
+      direct.addEventListener('click',()=>unsubscribe(ch,direct));
+    }else{
+      direct.textContent=state.subscribed.has(ch.id)?'✓ 구독 중':'바로 구독';
+      direct.disabled=state.subscribed.has(ch.id);if(direct.disabled)direct.classList.add('done');
+      direct.title='Google 계정 인증 후 웹사이트에서 구독';direct.addEventListener('click',()=>subscribe(ch.id,direct));
+    }
     const link=document.createElement('button');link.type='button';link.className='outlink primary-link';link.textContent='유튜브에서 구독 ↗';link.title='Chrome에서 설정한 YouTube 링크 열기 방식으로 이동';link.addEventListener('click',()=>openYoutubeSubscription(ch.id));
     actions.append(link,direct);card.append(top,actions);fragment.append(card);
   });root.append(fragment);
@@ -235,6 +263,26 @@ async function subscribe(id, btn) {
    }
  }catch(err){ const message=errorString(err);if(/already subscribed|subscriptionDuplicate|duplicate/i.test(message)){state.subscribed.add(id);toast('이미 구독 중인 채널입니다.','success');render();return;} toast(message,'error'); }
  finally{btn.disabled=false;btn.textContent=original;}
+}
+async function unsubscribe(channel, button){
+  if(!state.viewMine || !state.source || !channel.subscriptionId){
+    toast('구독 취소는 인증된 내 목록/소유자 조회에서만 가능합니다.','error');return;
+  }
+  if(!state.token || Date.now()>=state.expires){toast('Google 계정을 다시 연결해 주세요.','error');return;}
+  const confirmed=window.confirm('「'+channel.title+'」 채널의 구독을 취소하시겠습니까?\n이 작업은 연결한 YouTube 계정에 적용됩니다.');
+  if(!confirmed)return;
+  button.disabled=true;button.textContent='취소 중…';
+  try{
+    await youtube('subscriptions',{id:channel.subscriptionId},{auth:true,method:'DELETE'});
+    state.items=state.items.filter(x=>x.id!==channel.id);
+    state.subscribed.delete(channel.id);
+    state.items.forEach((x,i)=>{x.order=i;});
+    sourceDisplay(state.source);
+    $('resultsSubtitle').textContent=state.items.length.toLocaleString('ko-KR')+'개 · 구독 취소 반영 완료';
+    render();
+    toast('「'+channel.title+'」 구독을 취소했습니다.','success');
+    // Do not automatically re-fetch stale public snapshots immediately after a confirmed DELETE.
+  }catch(err){button.disabled=false;button.textContent='구독 취소';toast('구독 취소 실패: '+errorString(err),'error');}
 }
 function exportCsv(){if(!state.items.length)return;const csvCell=x=>'"'+String(x??'').replace(/"/g,'""')+'"';const rows=[['채널명','채널 ID','채널 URL','설명','구독 공개 데이터 날짜'],...state.items.map(x=>[x.title,x.id,'https://www.youtube.com/channel/'+x.id,x.description,x.publishedAt])];const blob=new Blob(['\ufeff'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='SubBridge_'+(state.source?.id||'subscriptions')+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
 
@@ -361,6 +409,7 @@ async function refreshLatestSubscriptions() {
         seenIds.add(id);
         freshItems.push({
           id,
+          subscriptionId: mine ? (sub.id || null) : null,
           title: sub.snippet?.title || '이름 없는 채널',
           description: sub.snippet?.description || '',
           avatar: avatarOf(sub.snippet),
@@ -392,7 +441,7 @@ async function refreshLatestSubscriptions() {
             const id = sub.snippet?.resourceId?.channelId || '';
             if (!/^UC[\w-]{22}$/.test(id) || retrySeen.has(id)) continue;
             retrySeen.add(id);
-            retryItems.push({id,title:sub.snippet?.title || '이름 없는 채널',description:sub.snippet?.description || '',avatar:avatarOf(sub.snippet),publishedAt:sub.snippet?.publishedAt || '',order:retryItems.length});
+            retryItems.push({id,subscriptionId:sub.id || null,title:sub.snippet?.title || '이름 없는 채널',description:sub.snippet?.description || '',avatar:avatarOf(sub.snippet),publishedAt:sub.snippet?.publishedAt || '',order:retryItems.length});
           }
           retryCursor = data.nextPageToken || null;
         } while(retryCursor);
