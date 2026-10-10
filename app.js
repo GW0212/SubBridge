@@ -22,7 +22,16 @@ $('themeBtn').addEventListener('click',()=>{
 
 const setting = name => String(cfg[name] || '').trim();
 const state = { source: null, viewMine: false, items: [], nextPage: null, busy: false, token: '', expires: 0, tokenClient: null, connectedChannel: null, subscribed: new Set(), authResolve: null, loginBusy: false };
-function toast(message, type = '') { const item = document.createElement('div');item.className = 'toast ' + type;item.textContent = message;$('toastHost').append(item);setTimeout(() => item.remove(), 5000); }
+function toast(message, type = '') {
+  const host = $('toastHost');
+  host.replaceChildren(); // 반복 알림이 화면 중앙에 쌓이지 않게 최신 안내만 표시
+  const item = document.createElement('div');
+  item.className = 'toast ' + type;
+  item.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  item.textContent = message;
+  host.append(item);
+  setTimeout(() => { if (item.isConnected) item.remove(); }, 4500);
+}
 function errorString(err) { const code = err?.reason || err?.message || String(err);const map = { quotaExceeded:'오늘의 YouTube API 할당량이 소진되었습니다.', dailyLimitExceeded:'오늘의 API 사용량 한도를 초과했습니다.', accessNotConfigured:'Google Cloud에서 YouTube Data API v3를 활성화해 주세요.', API_KEY_INVALID:'API 키가 올바르지 않습니다.', keyInvalid:'API 키를 확인해 주세요.', subscriptionForbidden:'이 채널은 구독 정보를 비공개로 설정했거나 구독 정보에 접근할 수 없습니다.', subscriptionDuplicate:'이미 구독 중인 채널입니다.', authenticatedUserAccountClosed:'이 계정에서는 YouTube를 사용할 수 없습니다.', insufficientPermissions:'유튜브 구독 권한이 승인되지 않았습니다.' }; return map[code] || code; }
 function cleanError(status, result) { const e = result?.error || {};const reason = e.errors?.[0]?.reason || e.status || '';if (status === 403 && /subscription|forbidden/i.test(reason)) return {reason:'subscriptionForbidden'};if (status === 403 && /subscription/i.test(e.message || '')) return {reason:'subscriptionForbidden'};if (status === 403 && !reason && /not authorized/i.test(e.message || '')) return {reason:'subscriptionForbidden'};return {reason, message: e.message || '요청에 실패했습니다. (HTTP ' + status + ')'}; }
 async function youtube(path, params = {}, options = {}) {
@@ -328,6 +337,35 @@ async function refreshLatestSubscriptions() {
       $('resultsSubtitle').textContent = `최신 목록 확인 중 · ${freshItems.length.toLocaleString('ko-KR')}개 · ${pages}페이지`;
       if (cursor) await new Promise(resolve => setTimeout(resolve, 0));
     } while (cursor);
+    // 본인 계정은 API가 이전과 같은 목록을 반환하면 짧게 두 번 더 확인합니다.
+    // 서버가 변경을 반환하기 전에는 임의로 목록에서 추가/삭제하지 않습니다.
+    const sameAsBefore = () => seenIds.size === beforeIds.size && [...seenIds].every(id => beforeIds.has(id));
+    if (mine && sameAsBefore()) {
+      for (const waitMs of [1200, 2500]) {
+        $('resultsSubtitle').textContent = `변경사항 재확인 중… · ${freshItems.length.toLocaleString('ko-KR')}개`;
+        await new Promise(resolve => setTimeout(resolve, waitMs));
+        const retryItems = [];
+        const retrySeen = new Set();
+        const retryTokens = new Set();
+        let retryCursor = null;
+        do {
+          if (retryCursor && retryTokens.has(retryCursor)) throw new Error('YouTube 페이지 토큰이 반복되었습니다.');
+          if (retryCursor) retryTokens.add(retryCursor);
+          const data = await youtube('subscriptions', {part:'snippet',mine:true,maxResults:50,pageToken:retryCursor || undefined}, {auth:true});
+          for (const sub of data.items || []) {
+            const id = sub.snippet?.resourceId?.channelId || '';
+            if (!/^UC[\w-]{22}$/.test(id) || retrySeen.has(id)) continue;
+            retrySeen.add(id);
+            retryItems.push({id,title:sub.snippet?.title || '이름 없는 채널',description:sub.snippet?.description || '',avatar:avatarOf(sub.snippet),publishedAt:sub.snippet?.publishedAt || '',order:retryItems.length});
+          }
+          retryCursor = data.nextPageToken || null;
+        } while(retryCursor);
+        freshItems.splice(0, freshItems.length, ...retryItems);
+        seenIds.clear();
+        for (const id of retrySeen) seenIds.add(id);
+        if (!sameAsBefore()) break;
+      }
+    }
     if (state.source?.id !== sourceId || state.viewMine !== mine) return;
     const added = freshItems.filter(item => !beforeIds.has(item.id)).length;
     const removed = previous.filter(item => !seenIds.has(item.id)).length;
@@ -342,7 +380,7 @@ async function refreshLatestSubscriptions() {
     if (!mine) {
       toast('공개 구독 목록을 갱신했습니다. 본인 구독 변경사항은 Google 계정 연결 후 「내 구독 목록 조회」에서 확인하세요. 공개 데이터 반영은 지연될 수 있습니다.');
     } else {
-      toast(added || removed ? `내 구독 변경사항 반영: 추가 ${added}개, 삭제 ${removed}개` : '인증된 내 구독 API에서도 변경사항이 확인되지 않았습니다. YouTube 반영 지연 또는 로그인 계정을 확인하세요.', added || removed ? 'success' : '');
+      toast(added || removed ? `내 구독 변경사항 반영: 추가 ${added}개, 삭제 ${removed}개` : '최신 내 구독 목록을 재확인했지만 API에 아직 변경사항이 없습니다. YouTube 서버 반영이나 계정 선택 상태를 확인해 주세요.', added || removed ? 'success' : '');
     }
     if (mine) refreshMine().catch(() => {});
   } catch (error) {

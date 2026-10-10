@@ -204,3 +204,8 @@ body{min-height:100vh;min-height:100dvh}
 .results-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 #mySubsBtn{white-space:nowrap}
 @media(max-width:640px){.results-actions{width:100%;justify-content:flex-start}.results-actions button{min-height:40px}}
+
+/* 상태 안내: PC / 모바일 모두 화면 정중앙에 표시 */
+.toast-host{position:fixed!important;top:50%!important;left:50%!important;bottom:auto!important;right:auto!important;transform:translate(-50%,-50%)!important;width:min(440px,calc(100vw - 32px))!important;max-width:calc(100vw - 32px)!important;z-index:9999!important;display:flex!important;flex-direction:column;align-items:stretch;gap:10px;pointer-events:none}
+.toast-host .toast{max-width:100%;width:100%;text-align:center;white-space:normal;overflow-wrap:anywhere;line-height:1.65;padding:16px 20px;border-radius:14px;box-shadow:0 18px 48px rgba(0,0,0,.25);pointer-events:auto}
+@media(max-width:600px){.toast-host{width:calc(100vw - 36px)!important}.toast-host .toast{padding:15px 14px;font-size:13px}}
