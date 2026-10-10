@@ -42,7 +42,7 @@ async function youtube(path, params = {}, options = {}) {
   else { const key = setting('API_KEY'); if (!key) throw new Error('사이트 API 설정이 누락되었습니다. 운영자에게 문의해 주세요.'); url.searchParams.set('key', key); }
   if (options.body) headers['Content-Type'] = 'application/json';
   // Every GET is fresh at the browser/network layer. Google may still propagate updates asynchronously.
-  if (!options.body && !options.method) url.searchParams.set('_subbridge_refresh', String(Date.now()));
+  if (!options.body && !options.method) url.searchParams.set('_subbridge_refresh', String(Date.now()) + '-' + Math.random().toString(36).slice(2));
   const response = await fetch(url, {method: options.method || 'GET', headers, cache: 'no-store', body: options.body ? JSON.stringify(options.body) : undefined});
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw cleanError(response.status, body);
@@ -74,7 +74,7 @@ async function resolveChannel(input) {
 }
 function avatarOf(snippet) { const url = snippet?.thumbnails?.medium?.url || snippet?.thumbnails?.default?.url || ''; return /^https:\/\//.test(url) ? url : ''; }
 function sourceDisplay(channel) { $('sourceBanner').classList.remove('hidden');$('sourceName').textContent = channel.snippet?.title || channel.id;$('sourceAvatar').src = avatarOf(channel.snippet);$('sourceUrl').href = 'https://www.youtube.com/channel/' + channel.id;$('sourceCount').textContent = state.items.length.toLocaleString('ko-KR');$('sourceCountLabel').textContent = state.viewMine ? '내 구독 채널' : '공개 구독 채널'; }
-function setBusy(flag) {state.busy = flag;$('searchBtn').disabled = flag;$('mySubsBtn').disabled = flag;$('moreBtn').disabled = flag;$('refreshBtn').disabled = flag || !state.source;$('exportBtn').disabled = flag || !state.items.length;}
+function setBusy(flag) {state.busy = flag;$('searchBtn').disabled = flag;$('mySubsBtn').disabled = flag;$('ownerVerifyBtn').disabled = flag || !state.source;$('moreBtn').disabled = flag;$('refreshBtn').disabled = flag || !state.source;$('exportBtn').disabled = flag || !state.items.length;}
 function empty(title, desc) { const root = $('channelGrid');root.replaceChildren();const emptyEl = document.createElement('div');emptyEl.className='empty';const icon=document.createElement('div');icon.className='empty-icon';icon.textContent='⌁';const h=document.createElement('h3');h.textContent=title;const p=document.createElement('p');p.textContent=desc;emptyEl.append(icon,h,p);root.append(emptyEl); }
 // 공개 구독 목록은 각 요청에서 최대 50개를 받습니다.
 // API가 다음 페이지 토큰을 제공하는 동안 자동으로 조회합니다.
@@ -151,9 +151,17 @@ async function fetchPage(reset) {
 }
 async function search(raw) { if (state.busy) return; if (!setting('API_KEY')) { toast('사이트 인증 설정이 누락되었습니다. 운영자에게 문의해 주세요.','error');return; }
   setBusy(true);empty('채널을 확인하는 중입니다…','유튜브 정보를 확인하고 있습니다.');$('resultsSubtitle').textContent='채널 조회 중…';$('sourceBanner').classList.add('hidden');
-  state.viewMine=false;state.items=[];state.nextPage=null;state.source=null;$('moreWrap').classList.add('hidden');$('filterInput').disabled=true;$('sortSelect').disabled=true;
+  state.viewMine=false;state.items=[];state.nextPage=null;state.source=null;$('syncNote').classList.add('hidden');$('moreWrap').classList.add('hidden');$('filterInput').disabled=true;$('sortSelect').disabled=true;
   try { state.source=await resolveChannel(raw); }catch(err){empty('채널을 찾을 수 없습니다',errorString(err));$('resultsSubtitle').textContent='채널 조회 실패';toast(errorString(err),'error');}finally{setBusy(false);}
-  if (state.source) await fetchPage(true);
+  if (state.source) {
+    $('ownerVerifyBtn').disabled=false;
+    if (state.token && Date.now() < state.expires) {
+      try { await preferAuthenticatedOwnSource(); }
+      catch (e) { console.warn('소유자 일치 여부 확인 실패:',errorString(e)); }
+    }
+    await fetchPage(true);
+    updateSourceModeHint();
+  }
 }
 function render() {
   const word=$('filterInput').value.trim().toLocaleLowerCase('ko');
@@ -269,8 +277,36 @@ function updateSourceModeHint() {
   const subtitle = $('resultsSubtitle');
   if (!state.source || !subtitle) return;
   subtitle.dataset.sourceMode = state.viewMine ? 'authenticated' : 'public';
-  $('sourceCountLabel').textContent = state.viewMine ? '내 계정 구독 채널 (OAuth)' : '해당 채널 공개 구독 목록';
+  $('sourceCountLabel').textContent = state.viewMine ? '소유자 인증 구독 채널' : '공개 API 구독 채널';
+  const note = $('syncNote');
+  note.classList.remove('hidden');
+  if (state.viewMine) {
+    note.textContent = '✓ 소유자 인증 조회 중입니다. 새로고침 시 Google 계정의 구독 목록을 다시 요청합니다. 다만 YouTube 서버의 갱신 지연은 제어할 수 없습니다.';
+  } else {
+    note.textContent = 'ⓘ 현재 공개 API로 조회 중입니다. 채널 소유자가 구독을 변경해도 공개 API 데이터 반영이 늦을 수 있습니다. 이 채널 소유자라면 [소유자 인증 조회]를 눌러 Google 계정을 인증한 후 새로고침하세요.';
+  }
 }
+async function ensureOwnerVerified() {
+  if (!state.source) throw new Error('먼저 조회할 유튜브 채널 URL을 입력해 주세요.');
+  if (!state.token || Date.now() >= state.expires) await connect();
+  // OAuth로 선택된 유튜브 채널의 실제 ID를 확인합니다.
+  const channels = await youtube('channels',{part:'id,snippet',mine:true,maxResults:50},{auth:true});
+  const ids = (channels.items || []).map(x=>x.id);
+  if (!ids.includes(state.source.id)) {
+    throw new Error('현재 연결된 YouTube 계정의 채널 ID가 조회 중인 채널과 다릅니다. Google 로그인에서 해당 채널(브랜드 계정 포함)을 선택해야 합니다.');
+  }
+  state.viewMine = true;
+  updateSourceModeHint();
+  return true;
+}
+$('ownerVerifyBtn').addEventListener('click',async()=>{
+  if(state.busy || !state.source)return;
+  try{
+    await ensureOwnerVerified();
+    toast('조회 대상 채널의 소유자 인증 완료. 인증된 구독 목록을 불러옵니다.','success');
+    await refreshLatestSubscriptions();
+  }catch(err){toast('소유자 인증 조회 실패: '+errorString(err),'error');}
+});
 async function preferAuthenticatedOwnSource() {
   if (state.viewMine || !state.source || !state.token || Date.now() >= state.expires) return false;
   // 공개 URL로 조회한 채널과 연결된 YouTube 계정이 같은 경우에만 모드 변경.
@@ -378,7 +414,8 @@ async function refreshLatestSubscriptions() {
     render();
     if (!freshItems.length) empty('구독 채널이 없습니다', '현재 API에서 반환된 구독 채널이 없습니다.');
     if (!mine) {
-      toast('공개 구독 목록을 갱신했습니다. 본인 구독 변경사항은 Google 계정 연결 후 「내 구독 목록 조회」에서 확인하세요. 공개 데이터 반영은 지연될 수 있습니다.');
+      updateSourceModeHint();
+      toast('공개 API를 다시 조회했습니다. 변경사항이 보이지 않으면 채널 소유자 계정으로 「소유자 인증 조회」를 이용해 주세요. 공개 API의 반영 지연은 사이트가 제거할 수 없습니다.');
     } else {
       toast(added || removed ? `내 구독 변경사항 반영: 추가 ${added}개, 삭제 ${removed}개` : '최신 내 구독 목록을 재확인했지만 API에 아직 변경사항이 없습니다. YouTube 서버 반영이나 계정 선택 상태를 확인해 주세요.', added || removed ? 'success' : '');
     }
