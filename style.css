@@ -129,3 +129,24 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{ou
  .tool-row .counter{margin-left:auto}
 }
 @media(max-width:350px){.tool-row #sortSelect{min-width:0;flex:1 1 100%;width:100%}.tool-row .counter{width:100%;text-align:right}}
+
+/* YouTube app / web destination selector */
+.card-actions .outlink{display:flex;align-items:center;justify-content:center;cursor:pointer;font:inherit;text-align:center}
+.open-choice-dialog{width:min(94vw,495px)}
+.open-choice-hint{margin:0 0 16px;font-size:13px}
+.open-choice-options{display:grid;gap:10px}
+.open-option{display:flex;align-items:center;width:100%;gap:13px;text-align:left;min-height:78px;padding:14px;border:1px solid var(--border,#dce4ed);border-radius:16px;background:var(--surface,#fff);color:var(--text,#1b293d);cursor:pointer;transition:background .18s,border-color .18s,transform .18s,box-shadow .18s}
+.open-option:hover{border-color:#f05061;transform:translateY(-2px);box-shadow:0 8px 24px #e2536420}
+.open-option:focus-visible{outline:3px solid #f58b96;outline-offset:2px}
+.open-option-icon{flex:none;display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:12px;background:color-mix(in srgb,#ee5366 12%,transparent);color:#e64b60;font-size:22px}
+.open-option>span:nth-child(2){display:grid;gap:5px;min-width:0;flex:1}
+.open-option strong{font-size:14px}
+.open-option small{font-size:12px;line-height:1.45;color:var(--muted,#6b7890)}
+.open-option-arrow{font-size:19px;color:var(--muted,#758399)}
+.open-always{display:flex;align-items:flex-start;gap:9px;margin:16px 0 10px;cursor:pointer;font-size:13px;line-height:1.5}
+.open-always input{width:17px;height:17px;flex:none;margin:2px 0 0;accent-color:#ef5361}
+.open-caveat{font-size:11px;line-height:1.65;margin:6px 0 14px}
+.open-choice-footer{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+:root[data-theme="dark"] .open-option{background:#1c2938;border-color:#354356;color:#f2f6fc}
+:root[data-theme="dark"] .open-option:hover{border-color:#f05a6b;background:#263245}
+@media(max-width:600px){.open-option{padding:12px;min-height:72px}.open-choice-footer{justify-content:stretch}.open-choice-footer button{flex:1 1 auto}.results-actions #openPrefsBtn{flex:0 0 auto}}

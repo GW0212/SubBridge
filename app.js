@@ -156,7 +156,7 @@ function render() {
     info.append(h,desc);top.append(avatar,info);
     const actions=document.createElement('div');actions.className='card-actions';
     const direct=document.createElement('button');direct.type='button';direct.className='subscribe';direct.textContent=state.subscribed.has(ch.id)?'✓ 구독 중':'바로 구독';direct.disabled=state.subscribed.has(ch.id);if(direct.disabled)direct.classList.add('done');direct.title='Google 계정 인증 후 웹사이트에서 구독';direct.addEventListener('click',()=>subscribe(ch.id,direct));
-    const link=document.createElement('a');link.className='outlink primary-link';link.href='https://www.youtube.com/channel/'+ch.id+'?sub_confirmation=1';link.target='_blank';link.rel='noopener noreferrer';link.textContent='유튜브에서 구독 ↗';link.title='유튜브에서 구독 여부를 확인하세요';
+    const link=document.createElement('button');link.type='button';link.className='outlink primary-link';link.textContent='유튜브에서 구독 ↗';link.title='앱 또는 웹사이트 열기 방식 선택';link.addEventListener('click',()=>chooseOpenTarget(ch.id));
     actions.append(link,direct);card.append(top,actions);fragment.append(card);
   });root.append(fragment);
 }
@@ -204,6 +204,55 @@ async function subscribe(id, btn) {
  finally{btn.disabled=false;btn.textContent=original;}
 }
 function exportCsv(){if(!state.items.length)return;const csvCell=x=>'"'+String(x??'').replace(/"/g,'""')+'"';const rows=[['채널명','채널 ID','채널 URL','설명','구독 공개 데이터 날짜'],...state.items.map(x=>[x.title,x.id,'https://www.youtube.com/channel/'+x.id,x.description,x.publishedAt])];const blob=new Blob(['\ufeff'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='SubBridge_'+(state.source?.id||'subscriptions')+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
+
+// 사용자별 열기 방식. 사이트 설정은 브라우저 로컬 저장소에만 저장됩니다.
+const OPEN_PREF_KEY = 'subbridge_youtube_open_preference_v1';
+let pendingOpenChannel = null;
+function getOpenPreference(){try{const v=localStorage.getItem(OPEN_PREF_KEY);return v==='app'||v==='web'?v:null;}catch(_){return null;}}
+function storeOpenPreference(value){try{if(value)localStorage.setItem(OPEN_PREF_KEY,value);else localStorage.removeItem(OPEN_PREF_KEY);}catch(_){}}
+function subscriptionUrl(channelId, mode){
+  // 데스크톱 브라우저에 설치된 PWA는 www.youtube.com URL을 포착할 수 있습니다.
+  // m.youtube.com은 브라우저로 열기를 위한 별도 호스트입니다. 기기 설정에 따라 앱 연결될 수도 있습니다.
+  const hostname=mode==='web'?'m.youtube.com':'www.youtube.com';
+  return 'https://'+hostname+'/channel/'+channelId+'?sub_confirmation=1';
+}
+function launchTarget(id,mode){
+  if(!/^UC[\w-]{22}$/.test(id)){toast('유효한 채널 ID가 아닙니다.','error');return;}
+  const url=subscriptionUrl(id,mode);
+  const tab=window.open(url,'_blank','noopener,noreferrer');
+  if(!tab){toast('팝업이 차단되었습니다. 새 탭 허용 후 다시 시도해 주세요.','error');}
+}
+function showOpenChoice(id){
+  pendingOpenChannel=id;
+  $('rememberOpenChoice').checked=false;
+  $('openChoiceHint').textContent=id?'구독할 채널을 여는 방법을 선택하세요.':'기본 열기 방식을 변경할 수 있습니다.';
+  $('openChoiceDialog').showModal();
+}
+function chooseOpenTarget(id){
+  const choice=getOpenPreference();
+  if(choice){launchTarget(id,choice);return;}
+  showOpenChoice(id);
+}
+function selectOpenTarget(mode){
+  const id=pendingOpenChannel;
+  const persist=$('rememberOpenChoice').checked;
+  if(persist){storeOpenPreference(mode);toast(mode==='app'?'기본 열기 방식: 유튜브 앱':'기본 열기 방식: 웹사이트','success');}
+  $('openChoiceDialog').close();
+  pendingOpenChannel=null;
+  if(id)launchTarget(id,mode);
+}
+$('launchAppBtn').addEventListener('click',()=>selectOpenTarget('app'));
+$('launchWebBtn').addEventListener('click',()=>selectOpenTarget('web'));
+$('closeOpenChoiceBtn').addEventListener('click',()=>$('openChoiceDialog').close());
+$('openChoiceDialog').addEventListener('close',()=>{pendingOpenChannel=null;});
+$('openPrefsBtn').addEventListener('click',()=>showOpenChoice(null));
+$('resetOpenPrefBtn').addEventListener('click',()=>{storeOpenPreference(null);$('rememberOpenChoice').checked=false;toast('저장된 열기 방식이 초기화되었습니다.','success');});
+$('copyChannelUrlBtn').addEventListener('click',async()=>{
+  if(!pendingOpenChannel){toast('구독 목록에서 채널을 선택하면 링크를 복사할 수 있습니다.');return;}
+  const url=subscriptionUrl(pendingOpenChannel,'web');
+  try{await navigator.clipboard.writeText(url);toast('채널 링크를 복사했습니다.','success');}catch(_){toast('링크 복사에 실패했습니다.','error');}
+});
+
 $('clearInputBtn').addEventListener('click',()=>{$('channelInput').value='';$('channelInput').focus();});
 $('authHelpBtn').addEventListener('click',()=>$('authHelpDialog').showModal());
 $('closeAuthHelpBtn').addEventListener('click',()=>$('authHelpDialog').close());
