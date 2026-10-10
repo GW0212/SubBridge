@@ -350,3 +350,22 @@ body{min-height:100vh;min-height:100dvh}
   .topbar .brandicon{width:25px!important;height:25px!important;font-size:17px!important;}
   .topbar .auth-control{gap:2px!important;}
 }
+
+/* Mobile header: show the full Google connection label, never substitute abbreviated text. */
+@media (max-width:760px) {
+  .topbar .auth-btn { font-size:11px!important; min-width:0!important; max-width:none!important; padding:0 8px!important; white-space:nowrap!important; letter-spacing:-.35px!important; }
+  .topbar .auth-btn::before,.topbar .auth-btn::after { content:none!important; display:none!important; }
+  .topbar .auth-control { gap:4px!important; }
+  .topbar .brand { font-size:clamp(14px,3.8vw,18px)!important; }
+}
+@media (max-width:470px) {
+  .topbar .auth-btn { font-size:10px!important; padding:0 6px!important; min-height:34px!important; }
+  .topbar .brand { font-size:clamp(14px,3.65vw,17px)!important; }
+  .topbar .brandicon { width:27px!important; height:27px!important; }
+  .topbar .help-dot { width:23px!important; height:23px!important; min-width:23px!important; }
+}
+@media (max-width:355px) {
+  .topbar .auth-btn { font-size:9px!important; padding:0 4px!important; }
+  .topbar .brand { font-size:13px!important; }
+  .topbar .brandicon { width:23px!important; height:23px!important; }
+}
