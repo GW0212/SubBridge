@@ -312,3 +312,19 @@ body{min-height:100vh;min-height:100dvh}
  .topbar .auth-btn{font-size:9px!important;padding:0 5px!important;min-height:31px!important;}
  .topbar .help-dot{width:23px!important;min-width:23px!important;height:23px!important;}
 }
+
+/* Mobile v5: prevent iOS Safari focus zoom without disabling user pinch zoom */
+@media(max-width:760px){
+  #channelInput, #filterInput, .search-form input, .tool-row input, .modal input {font-size:16px!important;}
+  .channel-card .card-actions .primary-link,
+  .channel-card .card-actions .subscribe {font-size:11px!important;font-weight:750!important;line-height:1.2!important;letter-spacing:-.2px!important;}
+  .modal .modal-head button.iconbtn,
+  .modal .modal-head button.iconbtn:is(:hover,:active,:focus,:focus-visible) {
+    background:transparent!important;background-color:transparent!important;
+    border:0!important;outline:0!important;box-shadow:none!important;
+    -webkit-box-shadow:none!important;filter:none!important;
+    -webkit-tap-highlight-color:transparent!important;
+    appearance:none!important;-webkit-appearance:none!important;
+  }
+  .modal .modal-head button.iconbtn {display:inline-flex!important;align-items:center!important;justify-content:center!important;width:36px;height:36px;padding:0!important;border-radius:50%!important;}
+}

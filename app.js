@@ -1,3 +1,10 @@
+function openHelpDialog(id){
+  const dialog=$(id);dialog.showModal();
+  // Safari paints a gray focus ring on the first focusable control (the X button).
+  // Focus the non-interactive dialog instead and clear the close button's focus.
+  dialog.setAttribute('tabindex','-1');
+  dialog.focus({preventScroll:true});
+}
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
@@ -297,12 +304,27 @@ function openYoutubeSubscription(channelId){
 }
 
 $('clearInputBtn').addEventListener('click',()=>{$('channelInput').value='';$('channelInput').focus();});
-$('authHelpBtn').addEventListener('click',()=>$('authHelpDialog').showModal());
+$('authHelpBtn').addEventListener('click',()=>openHelpDialog('authHelpDialog'));
 $('closeAuthHelpBtn').addEventListener('click',()=>$('authHelpDialog').close());
 $('authHelpOkayBtn').addEventListener('click',()=>$('authHelpDialog').close());
 $('loginBtn').addEventListener('click',async()=>{try{await connect();}catch(err){toast(errorString(err),'error');}});
-$('guideBtn').addEventListener('click',()=>$('guideDialog').showModal());$('guideOkayBtn').addEventListener('click',()=>$('guideDialog').close());$('closeGuideBtn').addEventListener('click',()=>$('guideDialog').close());
-$('searchForm').addEventListener('submit',event=>{event.preventDefault();search($('channelInput').value);});
+$('guideBtn').addEventListener('click',()=>openHelpDialog('guideDialog'));$('guideOkayBtn').addEventListener('click',()=>$('guideDialog').close());$('closeGuideBtn').addEventListener('click',()=>$('guideDialog').close());
+$('searchForm').addEventListener('submit',event=>{
+  event.preventDefault();
+  // iOS Safari magnifies focused inputs under 16px. Remove keyboard focus before loading.
+  const input=$('channelInput');
+  const query=input.value;
+  input.blur();
+  if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
+  search(query);
+});
+// Modal openers should not leave the close control in a focused/highlighted state.
+for(const id of ['guideDialog','authHelpDialog','youtubeLinkHelpDialog']){
+  const dialog=$(id);
+  if(!dialog)continue;
+  dialog.addEventListener('close',()=>{const active=document.activeElement;if(active instanceof HTMLElement&&dialog.contains(active))active.blur();});
+}
+
 $('mySubsBtn').addEventListener('click', async()=>{
   if(state.busy)return;
   try {
