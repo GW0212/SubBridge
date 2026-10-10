@@ -1,6 +1,5 @@
-// 사이트 운영자 설정: GitHub 업로드 전에 아래 값을 교체하세요.
-// OAuth Client Secret은 여기에 넣지 마세요.
+// SubBridge 운영자 전용 설정 (브라우저로 공개되므로 비밀 보관 불가)
 window.SUBBRIDGE_CONFIG = {
-  API_KEY: '',
-  OAUTH_CLIENT_ID: ''
+  API_KEY: 'AIzaSyBM4JdFk22i5_M66lNwJ893nQx2gU_mUxw',
+  OAUTH_CLIENT_ID: '658587831454-mnb90o60ma874heai9811svcgdtntanf.apps.googleusercontent.com'
 };

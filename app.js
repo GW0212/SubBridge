@@ -2,7 +2,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const cfg = window.SUBBRIDGE_CONFIG || {};
-const localKey = 'subbridge_credentials_v1';
+
 function applyTheme(theme) {
   const dark = theme === 'dark';
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
@@ -20,9 +20,7 @@ $('themeBtn').addEventListener('click',()=>{
   try { localStorage.setItem('subbridge_theme_v1',next); } catch (_) {}
 });
 
-let saved = {};
-try { saved = JSON.parse(localStorage.getItem(localKey) || '{}') || {}; } catch (_) {}
-const setting = name => (typeof saved[name] === 'string' && saved[name].trim()) || String(cfg[name] || '').trim();
+const setting = name => String(cfg[name] || '').trim();
 const state = { source: null, items: [], nextPage: null, busy: false, token: '', expires: 0, tokenClient: null, connectedChannel: null, subscribed: new Set(), authResolve: null, loginBusy: false };
 function toast(message, type = '') { const item = document.createElement('div');item.className = 'toast ' + type;item.textContent = message;$('toastHost').append(item);setTimeout(() => item.remove(), 5000); }
 function errorString(err) { const code = err?.reason || err?.message || String(err);const map = { quotaExceeded:'오늘의 YouTube API 할당량이 소진되었습니다.', dailyLimitExceeded:'오늘의 API 사용량 한도를 초과했습니다.', accessNotConfigured:'Google Cloud에서 YouTube Data API v3를 활성화해 주세요.', API_KEY_INVALID:'API 키가 올바르지 않습니다.', keyInvalid:'API 키를 확인해 주세요.', subscriptionForbidden:'이 채널은 구독 정보를 비공개로 설정했거나 구독 정보에 접근할 수 없습니다.', subscriptionDuplicate:'이미 구독 중인 채널입니다.', authenticatedUserAccountClosed:'이 계정에서는 YouTube를 사용할 수 없습니다.', insufficientPermissions:'유튜브 구독 권한이 승인되지 않았습니다.' }; return map[code] || code; }
@@ -32,7 +30,7 @@ async function youtube(path, params = {}, options = {}) {
   Object.entries(params).forEach(([k,v]) => { if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v)); });
   const headers = {};
   if (options.auth) {if (!state.token || Date.now() >= state.expires) throw new Error('Google 계정 연결이 만료되었습니다. 다시 연결해 주세요.');headers.Authorization = 'Bearer ' + state.token;}
-  else { const key = setting('API_KEY'); if (!key) throw new Error('API 키가 설정되지 않았습니다. 우측 상단 설정을 확인해 주세요.'); url.searchParams.set('key', key); }
+  else { const key = setting('API_KEY'); if (!key) throw new Error('사이트 API 설정이 누락되었습니다. 운영자에게 문의해 주세요.'); url.searchParams.set('key', key); }
   if (options.body) headers['Content-Type'] = 'application/json';
   const response = await fetch(url, {method: options.method || 'GET', headers, body: options.body ? JSON.stringify(options.body) : undefined});
   const body = await response.json().catch(() => ({}));
@@ -89,7 +87,7 @@ async function fetchPage(reset) {
   } catch(err) { toast(errorString(err),'error');if (reset) { $('resultsSubtitle').textContent = '목록을 불러오지 못했습니다.';empty('구독 목록 조회 실패',errorString(err)); } }
   finally {setBusy(false);$('moreBtn').textContent='다음 채널 더 불러오기 ↓';}
 }
-async function search(raw) { if (state.busy) return; if (!setting('API_KEY')) { $('settingsDialog').showModal();toast('먼저 Google Cloud API 키를 설정해 주세요.','error');return; }
+async function search(raw) { if (state.busy) return; if (!setting('API_KEY')) { toast('사이트 인증 설정이 누락되었습니다. 운영자에게 문의해 주세요.','error');return; }
   setBusy(true);empty('채널을 확인하는 중입니다…','유튜브 정보를 확인하고 있습니다.');$('resultsSubtitle').textContent='채널 조회 중…';$('sourceBanner').classList.add('hidden');
   state.items=[];state.nextPage=null;state.source=null;$('moreWrap').classList.add('hidden');$('filterInput').disabled=true;$('sortSelect').disabled=true;
   try { state.source=await resolveChannel(raw); }catch(err){empty('채널을 찾을 수 없습니다',errorString(err));$('resultsSubtitle').textContent='채널 조회 실패';toast(errorString(err),'error');}finally{setBusy(false);}
@@ -117,7 +115,7 @@ function render() {
 }
 function waitForGIS(){return new Promise((resolve,reject)=>{if(window.google?.accounts?.oauth2) return resolve();let n=0;const timer=setInterval(()=>{if(window.google?.accounts?.oauth2){clearInterval(timer);resolve();}else if(++n>=50){clearInterval(timer);reject(new Error('Google 로그인 스크립트 로딩에 실패했습니다. 네트워크 또는 광고 차단 설정을 확인해 주세요.'));}},100);});}
 async function connect() {
- const clientId=setting('OAUTH_CLIENT_ID');if(!clientId) { $('settingsDialog').showModal();throw new Error('Google OAuth 클라이언트 ID를 먼저 설정해 주세요.'); }
+ const clientId=setting('OAUTH_CLIENT_ID');if(!clientId) { throw new Error('Google OAuth 설정이 누락되었습니다. 운영자에게 문의해 주세요.'); }
  if(state.token && Date.now()<state.expires) return;
  if(state.authResolve) throw new Error('Google 로그인 창이 이미 열려 있습니다.');
  await waitForGIS();
@@ -125,7 +123,7 @@ async function connect() {
   const timeout=setTimeout(()=>{if(state.authResolve){state.authResolve=null;reject(new Error('로그인 요청 시간이 초과되었습니다. 다시 시도해 주세요.'));}},120000);
   state.authResolve={resolve,reject};
   try {
-    state.tokenClient=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:'https://www.googleapis.com/auth/youtube.force-ssl',callback:response=>{
+    state.tokenClient=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:'https://www.googleapis.com/auth/youtube',callback:response=>{
       clearTimeout(timeout);state.authResolve=null;
       if(response.error || !response.access_token){reject(new Error(response.error_description || response.error || '로그인을 취소했거나 권한이 승인되지 않았습니다.'));return;}
       state.token=response.access_token;state.expires=Date.now()+(Number(response.expires_in || 3500)-40)*1000;
@@ -159,14 +157,10 @@ async function subscribe(id, btn) {
  finally{btn.disabled=false;btn.textContent=original;}
 }
 function exportCsv(){if(!state.items.length)return;const csvCell=x=>'"'+String(x??'').replace(/"/g,'""')+'"';const rows=[['채널명','채널 ID','채널 URL','설명','구독 공개 데이터 날짜'],...state.items.map(x=>[x.title,x.id,'https://www.youtube.com/channel/'+x.id,x.description,x.publishedAt])];const blob=new Blob(['\ufeff'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='SubBridge_'+(state.source?.id||'subscriptions')+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
-function openSettings(){ $('apiKeyInput').value=setting('API_KEY');$('clientIdInput').value=setting('OAUTH_CLIENT_ID');$('settingsDialog').showModal(); }
-$('settingsBtn').addEventListener('click',openSettings);
-$('saveSettingsBtn').addEventListener('click',()=>{ const newApi=$('apiKeyInput').value.trim(),newClient=$('clientIdInput').value.trim();if(newClient && !/^\d+-[a-zA-Z0-9-]+\.apps\.googleusercontent\.com$/.test(newClient)){toast('OAuth 클라이언트 ID 형식을 확인해 주세요.','error');return;}saved={API_KEY:newApi,OAUTH_CLIENT_ID:newClient};try{localStorage.setItem(localKey,JSON.stringify(saved));}catch(_){toast('브라우저 설정을 저장할 수 없습니다.','error');return;}state.token='';state.expires=0;state.subscribed.clear();$('loginBtn').textContent='Google 계정 연결';$('settingsDialog').close();toast('연결 설정이 저장되었습니다.','success');});
-$('clearSettingsBtn').addEventListener('click',()=>{localStorage.removeItem(localKey);saved={};$('apiKeyInput').value=setting('API_KEY');$('clientIdInput').value=setting('OAUTH_CLIENT_ID');state.token='';state.expires=0;state.subscribed.clear();$('loginBtn').textContent='Google 계정 연결';toast('이 브라우저의 개인 설정을 삭제했습니다.','success');});
 $('loginBtn').addEventListener('click',async()=>{try{await connect();}catch(err){toast(errorString(err),'error');}});
 $('guideBtn').addEventListener('click',()=>$('guideDialog').showModal());$('guideOkayBtn').addEventListener('click',()=>$('guideDialog').close());$('closeGuideBtn').addEventListener('click',()=>$('guideDialog').close());
 $('searchForm').addEventListener('submit',event=>{event.preventDefault();search($('channelInput').value);});
 $('refreshBtn').addEventListener('click',()=>{state.items=[];state.nextPage=null;fetchPage(true);});
 $('moreBtn').addEventListener('click',()=>fetchPage(false));$('exportBtn').addEventListener('click',exportCsv);$('filterInput').addEventListener('input',render);$('sortSelect').addEventListener('change',render);
-if(!setting('API_KEY')) {$('resultsSubtitle').textContent='API 설정 후 공개 구독 목록을 조회할 수 있습니다.';}
+if(!setting('API_KEY')) {$('resultsSubtitle').textContent='사이트 API 설정이 필요합니다.';}
 })();
