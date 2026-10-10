@@ -43,14 +43,43 @@ function toast(message, type = '') {
   host.append(item);
   setTimeout(() => { if (item.isConnected) item.remove(); }, 4500);
 }
-function errorString(err) { const code = err?.reason || err?.message || String(err);const map = { quotaExceeded:'오늘의 YouTube API 할당량이 소진되었습니다.', dailyLimitExceeded:'오늘의 API 사용량 한도를 초과했습니다.', accessNotConfigured:'Google Cloud에서 YouTube Data API v3를 활성화해 주세요.', API_KEY_INVALID:'API 키가 올바르지 않습니다.', keyInvalid:'API 키를 확인해 주세요.', subscriptionForbidden:'이 채널은 구독 정보를 비공개로 설정했거나 구독 정보에 접근할 수 없습니다.', subscriptionDuplicate:'이미 구독 중인 채널입니다.', authenticatedUserAccountClosed:'이 계정에서는 YouTube를 사용할 수 없습니다.', insufficientPermissions:'유튜브 구독 권한이 승인되지 않았습니다.' }; return map[code] || code; }
-function cleanError(status, result) { const e = result?.error || {};const reason = e.errors?.[0]?.reason || e.status || '';if (status === 403 && /subscription|forbidden/i.test(reason)) return {reason:'subscriptionForbidden'};if (status === 403 && /subscription/i.test(e.message || '')) return {reason:'subscriptionForbidden'};if (status === 403 && !reason && /not authorized/i.test(e.message || '')) return {reason:'subscriptionForbidden'};return {reason, message: e.message || '요청에 실패했습니다. (HTTP ' + status + ')'}; }
+function errorString(err) {
+  const reason = err?.reason || '';
+  const message = err?.message || '';
+  const map = {
+    quotaExceeded:'YouTube API 할당량 초과입니다. Google Cloud 사용량을 확인해 주세요.',
+    dailyLimitExceeded:'오늘의 API 사용량 한도를 초과했습니다.',
+    rateLimitExceeded:'요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도해 주세요.',
+    userRateLimitExceeded:'사용자별 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도해 주세요.',
+    accessNotConfigured:'이 프로젝트에서 YouTube Data API v3가 활성화되어 있는지 확인해 주세요.',
+    API_KEY_INVALID:'API 키 설정을 확인해 주세요.', keyInvalid:'API 키 설정을 확인해 주세요.',
+    subscriptionForbidden:'YouTube에서 해당 구독 작업을 허용하지 않았습니다. 계정 및 구독 상태를 확인해 주세요.',
+    subscriptionDuplicate:'이미 구독 중인 채널입니다.',
+    authenticatedUserAccountClosed:'이 계정에서는 YouTube를 사용할 수 없습니다.',
+    insufficientPermissions:'YouTube 구독 권한이 승인되지 않았습니다.',
+    forbidden:'API 요청 권한이 거부되었습니다. ' + (message || '인증 또는 프로젝트 식별 상태를 확인해 주세요.'),
+    PERMISSION_DENIED:'API 요청 권한이 거부되었습니다. ' + (message || '인증 또는 프로젝트 식별 상태를 확인해 주세요.')
+  };
+  return map[reason] || message || reason || String(err);
+}
+function cleanError(status, result) {
+  const e = result?.error || {};
+  const reason = e.errors?.[0]?.reason || e.status || 'HTTP_' + status;
+  return {reason, message:e.message || '요청에 실패했습니다. (HTTP ' + status + ')', status};
+}
 async function youtube(path, params = {}, options = {}) {
   const url = new URL('https://www.googleapis.com/youtube/v3/' + path);
   Object.entries(params).forEach(([k,v]) => { if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v)); });
   const headers = {};
-  if (options.auth) {if (!state.token || Date.now() >= state.expires) throw new Error('Google 계정 연결이 만료되었습니다. 다시 연결해 주세요.');headers.Authorization = 'Bearer ' + state.token;}
-  else { const key = setting('API_KEY'); if (!key) throw new Error('사이트 API 설정이 누락되었습니다. 운영자에게 문의해 주세요.'); url.searchParams.set('key', key); }
+  // Public and OAuth requests both identify the same Google Cloud API consumer.
+  // The API key is browser-visible on GitHub Pages: restrict it to the site origin and YouTube API.
+  const key = setting('API_KEY');
+  if (!key) throw new Error('사이트 API 설정이 누락되었습니다. 운영자에게 문의해 주세요.');
+  url.searchParams.set('key', key);
+  if (options.auth) {
+    if (!state.token || Date.now() >= state.expires) throw new Error('Google 계정 연결이 만료되었습니다. 다시 연결해 주세요.');
+    headers.Authorization = 'Bearer ' + state.token;
+  }
   if (options.body) headers['Content-Type'] = 'application/json';
   // Every GET is fresh at the browser/network layer. Google may still propagate updates asynchronously.
   if (!options.body && !options.method) url.searchParams.set('_subbridge_refresh', String(Date.now()) + '-' + Math.random().toString(36).slice(2));
