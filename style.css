@@ -115,3 +115,17 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{ou
 }
 @media(max-width:385px){.brand{font-size:17px}.brandicon{width:30px;height:30px}.auth-btn{font-size:10px!important;padding:0 7px!important}.help-dot{width:26px;height:26px}.topbar{gap:6px}.page{padding:0 10px}.search-submit{padding:0 13px;font-size:12px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+/* Channel list toolbar alignment fix (2026-10-10) */
+.tool-row{display:flex;align-items:center;gap:12px;width:100%}
+.tool-row .filter-input{flex:1 1 auto;width:auto;max-width:none;min-width:0}
+.tool-row #sortSelect{flex:0 0 216px;width:216px;max-width:100%;min-width:0}
+.tool-row .counter{flex:0 0 auto;margin-left:6px;text-align:right}
+.filter-input .filter-search-icon{display:flex;align-items:center;justify-content:center;flex:0 0 20px;width:20px;height:20px;line-height:1;align-self:center}
+.filter-input .filter-search-icon svg{display:block;width:19px;height:19px;flex-shrink:0}
+@media(max-width:600px){
+ .tool-row .filter-input{flex:1 1 100%;width:100%;max-width:none}
+ .tool-row #sortSelect{flex:1 1 auto;width:auto;min-width:145px}
+ .tool-row .counter{margin-left:auto}
+}
+@media(max-width:350px){.tool-row #sortSelect{min-width:0;flex:1 1 100%;width:100%}.tool-row .counter{width:100%;text-align:right}}
