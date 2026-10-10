@@ -1,14 +1,18 @@
-function openHelpDialog(id){
-  const dialog=$(id);dialog.showModal();
-  // Safari paints a gray focus ring on the first focusable control (the X button).
-  // Focus the non-interactive dialog instead and clear the close button's focus.
-  dialog.setAttribute('tabindex','-1');
-  dialog.focus({preventScroll:true});
-}
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
 const cfg = window.SUBBRIDGE_CONFIG || {};
+
+// Shared modal opener lives inside the application scope so all help buttons work.
+function openHelpDialog(id){
+  const dialog = $(id);
+  if (!dialog || dialog.open) return;
+  dialog.setAttribute('tabindex', '-1');
+  dialog.showModal();
+  // Avoid WebKit applying the default focus rectangle to the first close button.
+  try { dialog.focus({preventScroll:true}); } catch(_) { dialog.focus(); }
+}
+
 
 function applyTheme(theme) {
   const dark = theme === 'dark';

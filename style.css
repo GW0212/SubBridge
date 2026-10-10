@@ -328,3 +328,25 @@ body{min-height:100vh;min-height:100dvh}
   }
   .modal .modal-head button.iconbtn {display:inline-flex!important;align-items:center!important;justify-content:center!important;width:36px;height:36px;padding:0!important;border-radius:50%!important;}
 }
+
+
+/* Mobile title: true viewport center, independent of unequal side-control widths. */
+@media (max-width:760px){
+  .topbar{display:flex!important;position:relative!important;align-items:center!important;justify-content:space-between!important;min-height:66px!important;gap:0!important;}
+  .topbar>.brand{position:absolute!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important;grid-column:auto!important;grid-row:auto!important;margin:0!important;justify-self:auto!important;z-index:1!important;max-width:none!important;overflow:visible!important;width:max-content!important;}
+  .topbar>.headbuttons{display:contents!important;}
+  .topbar .theme-toggle{position:relative!important;grid-column:auto!important;grid-row:auto!important;z-index:2!important;margin-right:auto!important;}
+  .topbar .auth-control{position:relative!important;grid-column:auto!important;grid-row:auto!important;margin-left:auto!important;z-index:2!important;}
+}
+@media(max-width:470px){
+  /* Narrow iPhones: shorten visible label while retaining the full accessible name. */
+  .topbar .auth-btn{font-size:0!important;min-width:40px!important;padding:0 6px!important;}
+  .topbar .auth-btn::after{content:'연결';font-size:11px!important;line-height:1.1;}
+  .topbar .brand{font-size:clamp(15px,4vw,19px)!important;}
+  .topbar .brand small{display:none!important;}
+}
+@media(max-width:355px){
+  .topbar .brand{font-size:14px!important;gap:3px!important;}
+  .topbar .brandicon{width:25px!important;height:25px!important;font-size:17px!important;}
+  .topbar .auth-control{gap:2px!important;}
+}
