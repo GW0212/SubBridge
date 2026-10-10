@@ -65,27 +65,74 @@ function avatarOf(snippet) { const url = snippet?.thumbnails?.medium?.url || sni
 function sourceDisplay(channel) { $('sourceBanner').classList.remove('hidden');$('sourceName').textContent = channel.snippet?.title || channel.id;$('sourceAvatar').src = avatarOf(channel.snippet);$('sourceUrl').href = 'https://www.youtube.com/channel/' + channel.id;$('sourceCount').textContent = state.items.length.toLocaleString('ko-KR'); }
 function setBusy(flag) {state.busy = flag;$('searchBtn').disabled = flag;$('moreBtn').disabled = flag;$('refreshBtn').disabled = flag || !state.source;$('exportBtn').disabled = flag || !state.items.length;}
 function empty(title, desc) { const root = $('channelGrid');root.replaceChildren();const emptyEl = document.createElement('div');emptyEl.className='empty';const icon=document.createElement('div');icon.className='empty-icon';icon.textContent='⌁';const h=document.createElement('h3');h.textContent=title;const p=document.createElement('p');p.textContent=desc;emptyEl.append(icon,h,p);root.append(emptyEl); }
+// 공개 구독 목록은 각 요청에서 최대 50개를 받습니다.
+// API가 다음 페이지 토큰을 제공하는 동안 자동으로 조회합니다.
 async function fetchPage(reset) {
   if (!state.source || state.busy) return;
   setBusy(true);
-  $('moreBtn').textContent='불러오는 중…';
+  $('moreWrap').classList.add('hidden');
+  $('moreBtn').textContent = '남은 목록 이어서 불러오기 ↓';
+  const sourceId = state.source.id;
+  if (reset) { state.items = []; state.nextPage = null; }
+  let cursor = reset ? null : state.nextPage;
+  let pages = 0;
+  const visited = new Set();
+  let completed = false;
+  let failed = false;
+  $('resultsSubtitle').textContent = '공개 구독 목록을 불러오는 중…';
   try {
-    const data = await youtube('subscriptions',{part:'snippet',channelId:state.source.id,maxResults:50,pageToken:reset ? undefined : state.nextPage});
-    const entries=(data.items || []).map((sub, idx) => ({
-      id:sub.snippet?.resourceId?.channelId || '',
-      title:sub.snippet?.title || '이름 없는 채널',
-      description:sub.snippet?.description || '',
-      avatar:avatarOf(sub.snippet),
-      publishedAt:sub.snippet?.publishedAt || '', order:state.items.length + idx
-    })).filter(x => /^UC[\w-]{22}$/.test(x.id));
-    const old = new Set(state.items.map(x => x.id));state.items.push(...entries.filter(x => !old.has(x.id)));
-    state.nextPage = data.nextPageToken || null;
-    $('moreWrap').classList.toggle('hidden',!state.nextPage);
-    $('resultsSubtitle').textContent = state.items.length.toLocaleString('ko-KR') + '개 불러옴' + (state.nextPage ? ' · 더 불러올 수 있습니다' : ' · 조회 완료');
-    $('filterInput').disabled = false;$('sortSelect').disabled = false;sourceDisplay(state.source);render();
-    if (reset && !state.items.length) empty('공개 구독 채널이 없습니다','해당 계정이 구독 정보를 공개했더라도 공개된 구독 채널이 없을 수 있습니다.');
-  } catch(err) { toast(errorString(err),'error');if (reset) { $('resultsSubtitle').textContent = '목록을 불러오지 못했습니다.';empty('구독 목록 조회 실패',errorString(err)); } }
-  finally {setBusy(false);$('moreBtn').textContent='다음 채널 더 불러오기 ↓';}
+    do {
+      if (cursor && visited.has(cursor)) throw new Error('YouTube에서 동일한 다음 페이지를 반복 반환했습니다. 잠시 후 새로고침해 주세요.');
+      if (cursor) visited.add(cursor);
+      const data = await youtube('subscriptions', {
+        part: 'snippet', channelId: sourceId, maxResults: 50,
+        pageToken: cursor || undefined
+      });
+      if (state.source?.id !== sourceId) return;
+      const existing = new Set(state.items.map(x => x.id));
+      for (const sub of data.items || []) {
+        const id = sub.snippet?.resourceId?.channelId || '';
+        if (!/^UC[\w-]{22}$/.test(id) || existing.has(id)) continue;
+        existing.add(id);
+        state.items.push({
+          id,
+          title: sub.snippet?.title || '이름 없는 채널',
+          description: sub.snippet?.description || '',
+          avatar: avatarOf(sub.snippet),
+          publishedAt: sub.snippet?.publishedAt || '',
+          order: state.items.length
+        });
+      }
+      pages++;
+      cursor = data.nextPageToken || null;
+      state.nextPage = cursor;
+      const total = Number(data.pageInfo?.totalResults);
+      const estimate = Number.isFinite(total) && total > 0 ? ` / API 예상 ${total.toLocaleString('ko-KR')}개` : '';
+      $('resultsSubtitle').textContent = `${state.items.length.toLocaleString('ko-KR')}개 불러오는 중${estimate} · ${pages}페이지 조회`;
+      $('filterInput').disabled = false;
+      $('sortSelect').disabled = false;
+      sourceDisplay(state.source);
+      render();
+      // 긴 목록은 브라우저가 중간에 화면을 갱신할 수 있게 합니다.
+      if (cursor) await new Promise(resolve => setTimeout(resolve, 0));
+    } while (cursor);
+    completed = true;
+    $('resultsSubtitle').textContent = `${state.items.length.toLocaleString('ko-KR')}개 조회 완료 · ${pages}페이지`; 
+    if (!state.items.length) empty('공개 구독 채널이 없습니다', '공개 설정된 구독 채널이 없을 수 있습니다.');
+  } catch (err) {
+    failed = true;
+    const msg = errorString(err);
+    $('resultsSubtitle').textContent = `${state.items.length.toLocaleString('ko-KR')}개까지 불러옴 · 조회 중단`;
+    toast('목록을 끝까지 불러오지 못했습니다: ' + msg, 'error');
+    if (!state.items.length) empty('구독 목록 조회 실패', msg);
+  } finally {
+    if (state.source?.id === sourceId) {
+      $('moreWrap').classList.toggle('hidden', !failed || !state.nextPage);
+      $('moreBtn').textContent = '남은 목록 이어서 불러오기 ↓';
+      sourceDisplay(state.source);
+      setBusy(false);
+    }
+  }
 }
 async function search(raw) { if (state.busy) return; if (!setting('API_KEY')) { toast('사이트 인증 설정이 누락되었습니다. 운영자에게 문의해 주세요.','error');return; }
   setBusy(true);empty('채널을 확인하는 중입니다…','유튜브 정보를 확인하고 있습니다.');$('resultsSubtitle').textContent='채널 조회 중…';$('sourceBanner').classList.add('hidden');
@@ -164,7 +211,7 @@ $('authHelpOkayBtn').addEventListener('click',()=>$('authHelpDialog').close());
 $('loginBtn').addEventListener('click',async()=>{try{await connect();}catch(err){toast(errorString(err),'error');}});
 $('guideBtn').addEventListener('click',()=>$('guideDialog').showModal());$('guideOkayBtn').addEventListener('click',()=>$('guideDialog').close());$('closeGuideBtn').addEventListener('click',()=>$('guideDialog').close());
 $('searchForm').addEventListener('submit',event=>{event.preventDefault();search($('channelInput').value);});
-$('refreshBtn').addEventListener('click',()=>{state.items=[];state.nextPage=null;fetchPage(true);});
+$('refreshBtn').addEventListener('click',()=>fetchPage(true));
 $('moreBtn').addEventListener('click',()=>fetchPage(false));$('exportBtn').addEventListener('click',exportCsv);$('filterInput').addEventListener('input',render);$('sortSelect').addEventListener('change',render);
 if(!setting('API_KEY')) {$('resultsSubtitle').textContent='사이트 API 설정이 필요합니다.';}
 })();
