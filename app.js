@@ -525,3 +525,18 @@ for (const dialogId of ['authHelpDialog', 'guideDialog']) {
     if (!inside) dialog.close();
   });
 }
+
+// Keep the URL hint readable on narrow screens without shrinking iOS input text
+// below 16px (which would trigger Safari's automatic input-focus zoom).
+(() => {
+  const input = document.getElementById('channelInput');
+  if (!input) return;
+  const mobileHint = '채널 URL 또는 @핸들 입력';
+  const desktopHint = '유튜브 채널 URL 또는 @핸들 / UC로 시작하는 채널 ID';
+  const mobileQuery = window.matchMedia('(max-width: 760px)');
+  const updateHint = () => {
+    input.placeholder = mobileQuery.matches ? mobileHint : desktopHint;
+  };
+  updateHint();
+  mobileQuery.addEventListener?.('change', updateHint);
+})();

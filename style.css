@@ -369,3 +369,9 @@ body{min-height:100vh;min-height:100dvh}
   .topbar .brand { font-size:13px!important; }
   .topbar .brandicon { width:23px!important; height:23px!important; }
 }
+
+/* Mobile: keep URL field hint fully visible while retaining 16px for iOS Safari. */
+@media (max-width:760px) {
+  #channelInput { font-size:16px!important; letter-spacing:-.3px; }
+  .search-form .input-wrap { gap:8px!important; }
+}
