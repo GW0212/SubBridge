@@ -164,8 +164,7 @@ async function search(raw) { if (state.busy) return; if (!setting('API_KEY')) { 
     updateSourceModeHint();
   }
 }
-// Search matches channel name, handle, description and channel ID, ignoring spaces,
-// punctuation and letter case; Korean initial-consonant searches are supported.
+// Search only channel names and Korean initial consonants, ignoring spaces, punctuation and case.
 const KOREAN_INITIALS='ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
 function normalizeSearch(text){return String(text||'').normalize('NFC').toLocaleLowerCase('ko').replace(/[^\p{L}\p{N}]/gu,'');}
 function hangulInitials(text){return Array.from(String(text||'')).map(ch=>{
@@ -177,10 +176,9 @@ function render() {
   const tokens=query.split(/\s+/).filter(Boolean).map(normalizeSearch);
   let list=state.items.filter(ch=>{
     if (!tokens.length) return true;
-    const fields=[ch.title, ch.description, ch.handle || '',ch.id];
-    const normalized=fields.map(normalizeSearch);
+    const normalizedName=normalizeSearch(ch.title);
     const initials=hangulInitials(ch.title);
-    return tokens.every(token=>normalized.some(value=>value.includes(token)) || initials.includes(token));
+    return tokens.every(token=>normalizedName.includes(token) || initials.includes(token));
   });
   switch($('sortSelect').value){case 'nameAsc':list.sort((a,b)=>a.title.localeCompare(b.title,'ko'));break;case 'nameDesc':list.sort((a,b)=>b.title.localeCompare(a.title,'ko'));break;case 'newest':list.sort((a,b)=>Date.parse(b.publishedAt || 0)-Date.parse(a.publishedAt || 0));break;default:list.sort((a,b)=>a.order-b.order);}
   $('filterCount').textContent = list.length.toLocaleString('ko-KR') + '개 표시';
@@ -488,3 +486,16 @@ document.getElementById('youtubeLinkHelpBtn').addEventListener('click', () => do
 document.getElementById('closeYoutubeLinkHelpBtn').addEventListener('click', () => document.getElementById('youtubeLinkHelpDialog').close());
 document.getElementById('youtubeLinkHelpOkayBtn').addEventListener('click', () => document.getElementById('youtubeLinkHelpDialog').close());
 document.getElementById('youtubeLinkHelpDialog').addEventListener('click', (e) => { if(e.target === e.currentTarget) e.currentTarget.close(); });
+
+// Allow backdrop clicking to close the two additional help dialogs, consistent
+// with the existing YouTube-link help dialog. Clicks inside are ignored.
+for (const dialogId of ['authHelpDialog', 'guideDialog']) {
+  const dialog = document.getElementById(dialogId);
+  dialog.addEventListener('click', event => {
+    if (event.target !== dialog) return;
+    const bounds = dialog.getBoundingClientRect();
+    const inside = event.clientX >= bounds.left && event.clientX <= bounds.right
+      && event.clientY >= bounds.top && event.clientY <= bounds.bottom;
+    if (!inside) dialog.close();
+  });
+}

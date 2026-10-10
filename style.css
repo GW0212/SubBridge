@@ -221,3 +221,13 @@ body{min-height:100vh;min-height:100dvh}
 .channel-card .subscribe.unsubscribe:hover:not(:disabled){background:rgba(235,74,88,.09);border-color:#df5965;transform:translateY(-1px);}
 [data-theme="dark"] .channel-card .subscribe.unsubscribe{color:#ffa6ac;border-color:#7f4b59;}
 .channel-card .subscribe.unsubscribe:disabled{opacity:.5;cursor:not-allowed;}
+
+/* Sorting dropdown: give the chevron breathing room in both themes. */
+.tool-row #sortSelect {
+  -webkit-appearance: none; appearance: none;
+  padding: 0 46px 0 16px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238395ac' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-size: 17px 17px;
+  background-position: right 16px center;
+  cursor: pointer;
+}
