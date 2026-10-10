@@ -1,0 +1,70 @@
+# SubBridge — 유튜브 공개 구독 목록 탐색기
+
+GitHub Pages에서 배포 가능한 정적 웹사이트입니다. 별도 백엔드, npm 설치, 빌드, Render가 필요 없습니다.
+
+## 사이트 기능
+
+- 상대 채널의 **공개 구독 목록** 조회: 50개씩 페이지네이션 (더 불러오기)
+- 채널명 검색 · 정렬 · 목록 CSV 내보내기 · 반응형 모바일 UI
+- **유튜브에서 구독**: 유튜브의 해당 채널 구독 확인 화면으로 이동 (OAuth 불필요)
+- **바로 구독**: Google 계정 OAuth 인증 뒤 YouTube Data API `subscriptions.insert`로 가입 (개별 클릭 후 실행)
+- 목록이 비공개라면 접근 불가 (비공개 정보 우회 불가)
+
+## 1. Google Cloud 설정 (관리자 최초 1회)
+
+1. https://console.cloud.google.com/ 에서 프로젝트를 만듭니다.
+2. `API 및 서비스 → 라이브러리`에서 **YouTube Data API v3**를 활성화합니다.
+3. `API 및 서비스 → 사용자 인증 정보`에서 **API 키**를 생성합니다.
+4. API 키에는 **애플리케이션 제한: 웹사이트(HTTP 리퍼러)**를 설정하고, 허용 사이트에 `https://YOURNAME.github.io/*` 를 추가합니다. **API 제한**도 `YouTube Data API v3`로 지정합니다. (본인의 GitHub 사용자명으로 변경)
+5. `Google Auth Platform`에서 브랜딩, 대상 사용자(외부), 동의 화면 등의 설정을 완료합니다.
+6. **OAuth 클라이언트 ID → 웹 애플리케이션**을 만듭니다. 승인된 JavaScript 원본에 `https://YOURNAME.github.io` 를 추가합니다. **원본에 `/repo-name/` 경로는 넣지 않습니다.**
+7. 공개 사용자가 OAuth로 연결하게 하려면 OAuth 앱 게시/검증 관련 Google 요구 사항을 충족해야 합니다. 테스트 상태이면 등록한 테스트 계정만 로그인할 수 있습니다. 구독 관련 YouTube 쓰기 권한은 심사 및 제한이 적용될 수 있습니다.
+8. `config.js`의 `API_KEY`와 `OAUTH_CLIENT_ID`에 값을 기입합니다. **OAuth Client Secret은 절대로 웹사이트에 넣지 마세요.**
+
+```js
+window.SUBBRIDGE_CONFIG = {
+  API_KEY: 'YOUR_RESTRICTED_BROWSER_API_KEY',
+  OAUTH_CLIENT_ID: '123456789-abcdef.apps.googleusercontent.com'
+};
+```
+
+**중요:** GitHub Pages는 정적 사이트이므로 위 API 키는 방문자가 볼 수 있습니다. 반드시 HTTP 리퍼러 및 API 제한을 적용하고 사용량/쿼터를 점검하세요. 방문자가 '설정'에서 본인의 자격증명을 입력할 수도 있습니다(브라우저 로컬 저장소에 저장).
+
+## 2. GitHub Pages 배포
+
+1. ZIP 압축을 풀어 나온 `index.html`, `style.css`, `app.js`, `config.js`, `favicon.png`, `README.md`를 GitHub 저장소의 **루트**에 업로드합니다. (상위 폴더를 추가로 만들지 않음)
+2. GitHub 저장소에서 `Settings → Pages → Build and deployment → Deploy from a branch`, `main` / `/(root)` 를 선택하고 저장합니다.
+3. 사이트 URL `https://YOURNAME.github.io/REPO/`로 접속합니다.
+4. `config.js`가 설정되면 공개 URL을 아는 누구나 목록 조회를 사용할 수 있습니다(키 사용량/할당량 내). OAuth 게시 및 검증 조건을 충족하면 방문자의 Google 계정 연결도 가능합니다.
+
+## 3. 로컬 테스트
+
+- `index.html` 더블클릭으로 화면을 볼 수 있지만, OAuth 로그인은 `file://`에서 작동하지 않습니다.
+- 실제 API 사용 테스트는 GitHub Pages의 HTTPS 주소 또는 허용 원본으로 등록된 localhost 웹서버에서 하세요.
+
+## 4. 사용 방법
+
+- 유튜브 채널 URL (`https://www.youtube.com/@handle`, `/channel/UC...`, `/user/name`) 또는 `@handle` 입력.
+- `/c/맞춤이름` 또는 개별 영상 URL은 채널을 명확히 식별하지 못하므로 지원하지 않습니다. 해당 채널의 `@핸들`을 사용하세요.
+- 비공개 구독 목록을 강제로 가져올 수 없습니다. 구독 수가 많으면 아래의 **다음 채널 더 불러오기**를 선택하세요.
+- 직접 구독은 해당 계정에서 OAuth를 승인해야 하며, Google/YouTube가 승인한 권한·정책·쿼터에 좌우됩니다.
+
+## API 및 주의사항
+
+- `channels.list`(채널 식별) / `subscriptions.list`(공개 구독 조회 또는 본인 구독 확인) / `subscriptions.insert`(본인 계정의 직접 구독)를 사용합니다.
+- `subscriptions.insert`: 공식 문서 기준 **요청당 50 quota units**. 일일 기본 프로젝트 쿼터 및 추가 심사가 제한이 될 수 있습니다.
+- 본인 구독 여부 표시는 초기 조회 최대 1,000개로 제한해 API 남용을 막습니다. 1,000개 초과인 경우 실제로 이미 구독 중인데도 버튼이 '바로 구독'으로 남을 수 있으며, 중복 구독 시 오류를 처리합니다.
+- 토큰은 페이지 메모리에만 저장합니다. 비밀번호나 OAuth 클라이언트 보안 비밀은 수집하지 않습니다.
+- API 키 및 OAuth 클라이언트 ID는 공개 사이트에서 숨길 수 없습니다. OAuth 클라이언트 ID는 공개 값이며 OAuth 동의/원본 제한으로 보호합니다.
+- 공식 서비스와 관계없는 서드파티 도구입니다.
+
+공식 문서:
+- https://developers.google.com/youtube/v3/guides/implementation/subscriptions
+- https://developers.google.com/youtube/v3/docs/subscriptions/list
+- https://developers.google.com/youtube/v3/docs/subscriptions/insert
+- https://developers.google.com/identity/oauth2/web/guides/use-token-model
+
+## 테마 변경
+- 기본 테마는 화이트입니다. 상단 다크 모드 버튼으로 화이트/다크 전환이 가능합니다.
+- 선택 테마는 브라우저 로컬 저장소에 유지됩니다. 이전에 선택한 경우 해당 선택을 유지합니다.
+- 시작 화면의 큰 소개 배너는 제거하여 바로 채널 검색 영역이 보입니다.
