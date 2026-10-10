@@ -109,8 +109,8 @@ function render() {
     info.append(h,desc);top.append(avatar,info);
     const actions=document.createElement('div');actions.className='card-actions';
     const direct=document.createElement('button');direct.type='button';direct.className='subscribe';direct.textContent=state.subscribed.has(ch.id)?'✓ 구독 중':'바로 구독';direct.disabled=state.subscribed.has(ch.id);if(direct.disabled)direct.classList.add('done');direct.title='Google 계정 인증 후 웹사이트에서 구독';direct.addEventListener('click',()=>subscribe(ch.id,direct));
-    const link=document.createElement('a');link.className='outlink';link.href='https://www.youtube.com/channel/'+ch.id+'?sub_confirmation=1';link.target='_blank';link.rel='noopener noreferrer';link.textContent='유튜브에서 구독 ↗';link.title='유튜브에서 구독 여부를 확인하세요';
-    actions.append(direct,link);card.append(top,actions);fragment.append(card);
+    const link=document.createElement('a');link.className='outlink primary-link';link.href='https://www.youtube.com/channel/'+ch.id+'?sub_confirmation=1';link.target='_blank';link.rel='noopener noreferrer';link.textContent='유튜브에서 구독 ↗';link.title='유튜브에서 구독 여부를 확인하세요';
+    actions.append(link,direct);card.append(top,actions);fragment.append(card);
   });root.append(fragment);
 }
 function waitForGIS(){return new Promise((resolve,reject)=>{if(window.google?.accounts?.oauth2) return resolve();let n=0;const timer=setInterval(()=>{if(window.google?.accounts?.oauth2){clearInterval(timer);resolve();}else if(++n>=50){clearInterval(timer);reject(new Error('Google 로그인 스크립트 로딩에 실패했습니다. 네트워크 또는 광고 차단 설정을 확인해 주세요.'));}},100);});}
@@ -157,6 +157,10 @@ async function subscribe(id, btn) {
  finally{btn.disabled=false;btn.textContent=original;}
 }
 function exportCsv(){if(!state.items.length)return;const csvCell=x=>'"'+String(x??'').replace(/"/g,'""')+'"';const rows=[['채널명','채널 ID','채널 URL','설명','구독 공개 데이터 날짜'],...state.items.map(x=>[x.title,x.id,'https://www.youtube.com/channel/'+x.id,x.description,x.publishedAt])];const blob=new Blob(['\ufeff'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='SubBridge_'+(state.source?.id||'subscriptions')+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
+$('clearInputBtn').addEventListener('click',()=>{$('channelInput').value='';$('channelInput').focus();});
+$('authHelpBtn').addEventListener('click',()=>$('authHelpDialog').showModal());
+$('closeAuthHelpBtn').addEventListener('click',()=>$('authHelpDialog').close());
+$('authHelpOkayBtn').addEventListener('click',()=>$('authHelpDialog').close());
 $('loginBtn').addEventListener('click',async()=>{try{await connect();}catch(err){toast(errorString(err),'error');}});
 $('guideBtn').addEventListener('click',()=>$('guideDialog').showModal());$('guideOkayBtn').addEventListener('click',()=>$('guideDialog').close());$('closeGuideBtn').addEventListener('click',()=>$('guideDialog').close());
 $('searchForm').addEventListener('submit',event=>{event.preventDefault();search($('channelInput').value);});
