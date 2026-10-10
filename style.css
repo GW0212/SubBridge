@@ -191,3 +191,11 @@ button:focus-visible,a:focus-visible,select:focus-visible,.input-wrap:focus-with
 @media(hover:none){.channel-card:hover{transform:none;box-shadow:0 3px 12px #0c1e3010}.brand:hover .brandicon{transform:none}.ghost:hover:not(:disabled),.outlink:hover{transform:none}}
 @media(max-width:600px){.search-panel,.workspace{overflow:visible}.search-panel::before,.workspace::before{display:none}.channel-card:nth-child(n){animation-delay:0ms}.channel-card:hover .avatar{transform:none}}
 @media(prefers-reduced-motion:reduce){.channel-card:nth-child(n),.toast{animation:none!important}.search-panel,.workspace,.brandicon,.primary,.ghost,.link-btn,.help-dot,.iconbtn,.outlink,.subscribe,.channel-card,.channel-card::before,.channel-card .avatar{transition:none!important}}
+
+/* Dark mode: avoid the visible horizontal background seam below the content.
+   Keep the viewport and the document background on the same uninterrupted color. */
+html{min-height:100%;background:var(--bg)}
+body{min-height:100vh;min-height:100dvh}
+:root[data-theme="dark"]{background:#0a101a}
+:root[data-theme="dark"] body{background:#0a101a}
+:root[data-theme="light"]{background:#f7f9fc}
