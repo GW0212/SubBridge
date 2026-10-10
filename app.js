@@ -122,7 +122,8 @@ async function fetchPage(reset) {
       if (cursor) await new Promise(resolve => setTimeout(resolve, 0));
     } while (cursor);
     completed = true;
-    $('resultsSubtitle').textContent = `${state.items.length.toLocaleString('ko-KR')}개 조회 완료 · ${pages}페이지 · ${useMine ? '내 계정 구독 목록' : '공개 구독 목록'}`; 
+    $('resultsSubtitle').textContent = `${state.items.length.toLocaleString('ko-KR')}개 조회 완료 · ${pages}페이지 · ${useMine ? '인증된 내 계정 구독 목록' : '해당 채널의 공개 구독 목록 (내 구독 현황과 다를 수 있음)'}`;
+    updateSourceModeHint(); 
     if (!state.items.length) empty('구독 채널이 없습니다',state.viewMine?'이 계정에서 조회할 구독 채널이 없습니다.':'공개 설정된 구독 채널이 없을 수 있습니다.');
   } catch (err) {
     failed = true;
@@ -251,13 +252,40 @@ $('mySubsBtn').addEventListener('click', async()=>{
     $('filterInput').disabled=false;$('sortSelect').disabled=false;
     $('sourceBanner').classList.remove('hidden');
     await fetchPage(true);
+    updateSourceModeHint();
   } catch(err){toast('내 목록 조회 실패: '+errorString(err),'error');}
 });
+// 조회 모드를 눈에 띄게 구분합니다. 공개 목록은 내 계정의 구독 현황과 다를 수 있습니다.
+function updateSourceModeHint() {
+  const subtitle = $('resultsSubtitle');
+  if (!state.source || !subtitle) return;
+  subtitle.dataset.sourceMode = state.viewMine ? 'authenticated' : 'public';
+  $('sourceCountLabel').textContent = state.viewMine ? '내 계정 구독 채널 (OAuth)' : '해당 채널 공개 구독 목록';
+}
+async function preferAuthenticatedOwnSource() {
+  if (state.viewMine || !state.source || !state.token || Date.now() >= state.expires) return false;
+  // 공개 URL로 조회한 채널과 연결된 YouTube 계정이 같은 경우에만 모드 변경.
+  const own = await youtube('channels', {part:'id', mine:true, maxResults:50}, {auth:true});
+  const matched = (own.items || []).some(channel => channel.id === state.source.id);
+  if (matched) {
+    state.viewMine = true;
+    toast('연결한 본인 채널로 확인되어 인증된 내 구독 목록으로 갱신합니다.', 'success');
+    return true;
+  }
+  return false;
+}
 // 새로고침은 이전 데이터를 보존한 채 모든 API 페이지를 다시 받아온 후 한 번에 교체합니다.
 async function refreshLatestSubscriptions() {
   if (state.busy || !state.source) return;
   const sourceId = state.source.id;
+  // 이미 인증되어 있다면 동일한 본인 채널은 자동으로 mine=true 조회로 전환.
+  // 인증 실패는 조용히 공개 조회로 대체하지 않고 화면에 명확히 알림.
+  if (!state.viewMine && state.token && Date.now() < state.expires) {
+    try { await preferAuthenticatedOwnSource(); }
+    catch (error) { toast('본인 채널 확인 실패: ' + errorString(error) + ' · 공개 목록으로 조회합니다.', 'error'); }
+  }
   const mine = state.viewMine;
+  updateSourceModeHint();
   if (mine && (!state.token || Date.now() >= state.expires)) {
     toast('내 구독 목록을 갱신하려면 Google 계정을 다시 연결해 주세요.', 'error');
     return;
@@ -308,9 +336,14 @@ async function refreshLatestSubscriptions() {
     $('moreWrap').classList.add('hidden');
     $('resultsSubtitle').textContent = `${freshItems.length.toLocaleString('ko-KR')}개 최신 조회 완료 · 추가 ${added}개 · 삭제 ${removed}개 · ${pages}페이지`;
     sourceDisplay(state.source);
+    updateSourceModeHint();
     render();
     if (!freshItems.length) empty('구독 채널이 없습니다', '현재 API에서 반환된 구독 채널이 없습니다.');
-    toast(added || removed ? `변경사항 반영: 추가 ${added}개, 삭제 ${removed}개` : 'YouTube API 기준 변경사항이 없습니다. 반영 지연이 있을 수 있습니다.', added || removed ? 'success' : '');
+    if (!mine) {
+      toast('공개 구독 목록을 갱신했습니다. 본인 구독 변경사항은 Google 계정 연결 후 「내 구독 목록 조회」에서 확인하세요. 공개 데이터 반영은 지연될 수 있습니다.');
+    } else {
+      toast(added || removed ? `내 구독 변경사항 반영: 추가 ${added}개, 삭제 ${removed}개` : '인증된 내 구독 API에서도 변경사항이 확인되지 않았습니다. YouTube 반영 지연 또는 로그인 계정을 확인하세요.', added || removed ? 'success' : '');
+    }
     if (mine) refreshMine().catch(() => {});
   } catch (error) {
     state.items = previous;
