@@ -145,3 +145,15 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{ou
 .youtube-link-help-modal .guide-list li{padding-left:2px}
 .youtube-link-help-modal code{padding:2px 5px;border-radius:5px;background:var(--panel2);color:var(--white);font-size:12px;white-space:nowrap}
 @media(max-width:600px){.results-title-line{gap:7px}.results-help-btn{width:26px;height:26px;min-width:26px}.youtube-link-help-modal .guide-list{font-size:12px}}
+
+/* 2026-10-10: Center header brand, remove PUBLIC DATA ONLY label */
+.topbar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;column-gap:12px;}
+.topbar>.brand{grid-column:2;justify-self:center;}
+.topbar>.headbuttons{grid-column:3;justify-self:end;min-width:0;}
+@media(max-width:760px){
+ .topbar{grid-template-columns:1fr;grid-template-rows:auto auto;row-gap:11px;padding:15px 0 13px;}
+ .topbar>.brand{grid-column:1;grid-row:1;justify-self:center;}
+ .topbar>.headbuttons{grid-column:1;grid-row:2;justify-self:center;justify-content:center;flex-wrap:wrap;}
+ .topbar .brand small{display:block;font-size:7px;letter-spacing:1px;}
+}
+@media(max-width:390px){.topbar .brand small{font-size:6px;letter-spacing:.65px;}}
