@@ -231,3 +231,43 @@ body{min-height:100vh;min-height:100dvh}
   background-position: right 16px center;
   cursor: pointer;
 }
+
+
+/* Mobile polish: brand centered in the same row as controls */
+@media(max-width:760px){
+  .topbar{display:grid;grid-template-columns:minmax(48px,1fr) auto minmax(48px,1fr);grid-template-rows:auto;align-items:center;gap:5px;padding:12px 0;min-height:70px;}
+  .topbar>.brand{grid-column:2;grid-row:1;justify-self:center;min-width:0;}
+  .topbar>.headbuttons{display:contents;}
+  .topbar .theme-toggle{grid-column:1;grid-row:1;justify-self:start;width:38px;min-width:38px;min-height:38px;padding:0;display:inline-flex;align-items:center;justify-content:center;}
+  .topbar .theme-toggle #themeText{display:none!important;}
+  .topbar .auth-control{grid-column:3;grid-row:1;justify-self:end;display:flex;align-items:center;gap:4px;min-width:0;}
+  .topbar .auth-btn{padding:0 7px;min-height:36px;font-size:10px;line-height:1.1;white-space:nowrap;}
+  .topbar .auth-control .help-dot{width:27px;min-width:27px;height:27px;padding:0;}
+  .topbar .brandicon{width:32px;height:32px;font-size:22px;border-radius:10px;}
+  .topbar .brand{font-size:18px;gap:6px;letter-spacing:-.7px;}
+  .topbar .brand small{font-size:5px;letter-spacing:.45px;white-space:nowrap;}
+  /* Actions always occupy one horizontal row. Narrow viewports can scroll this row. */
+  .results-actions{display:flex!important;flex-wrap:nowrap!important;justify-content:flex-start!important;align-items:center;gap:5px;width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;padding:2px 1px 7px;scrollbar-width:thin;}
+  .results-actions button{flex:1 0 auto;min-height:37px!important;padding:0 8px;font-size:clamp(9px,2.5vw,11px);white-space:nowrap;}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px;}
+  .channel-card{padding:10px;gap:9px;min-width:0;}
+  .card-top{gap:7px;min-width:0;}
+  .avatar{width:36px;height:36px;}
+  .card-info h3{font-size:12px;}
+  .card-info p{font-size:10px;}
+  .card-actions{flex-direction:column;gap:6px;}
+  .card-actions button,.card-actions a{width:100%;flex:0 0 auto;min-height:34px;font-size:11px;}
+  /* Eliminate mobile tap-focus red outline on dialog close only; keep accessible keyboard focus. */
+  .modal .modal-head .iconbtn:focus,.modal .modal-head .iconbtn:active{outline:none!important;box-shadow:none!important;-webkit-tap-highlight-color:transparent;}
+  .modal .modal-head .iconbtn{outline:none;-webkit-tap-highlight-color:transparent;}
+  .modal .modal-head .iconbtn:focus-visible{outline:2px solid #8298ac!important;outline-offset:3px;}
+}
+@media(max-width:390px){
+ .topbar .brand{font-size:16px;gap:4px;}
+ .topbar .brandicon{width:29px;height:29px;font-size:20px;}
+ .topbar .auth-btn{font-size:9px;padding:0 5px;}
+ .topbar .auth-control .help-dot{width:24px;min-width:24px;height:24px;}
+ .topbar .brand small{font-size:4.5px;letter-spacing:.25px;}
+ .channel-card{padding:8px;}
+ .avatar{width:32px;height:32px;}
+}
