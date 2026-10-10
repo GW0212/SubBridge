@@ -271,3 +271,44 @@ body{min-height:100vh;min-height:100dvh}
  .channel-card{padding:8px;}
  .avatar{width:32px;height:32px;}
 }
+
+
+/* Mobile hotfix v4: spacing, header collision, modal close tap highlight */
+@media (max-width:760px){
+ .topbar{display:grid!important;grid-template-columns:40px minmax(0,1fr) auto!important;grid-template-rows:1fr!important;gap:7px!important;min-height:64px!important;padding:10px 0!important;align-items:center!important;}
+ .topbar>.brand{grid-column:2!important;grid-row:1!important;justify-self:center!important;width:max-content;max-width:100%;overflow:hidden;gap:5px!important;font-size:clamp(14px,4vw,19px)!important;white-space:nowrap;}
+ .topbar .brandicon{width:30px!important;height:30px!important;flex-shrink:0;font-size:20px!important;}
+ .topbar .brand small{font-size:4.4px!important;letter-spacing:.25px!important;overflow:hidden;text-overflow:ellipsis;}
+ .topbar>.headbuttons{display:contents!important;}
+ .topbar .theme-toggle{grid-column:1!important;grid-row:1!important;justify-self:start!important;width:36px!important;min-width:36px!important;min-height:36px!important;padding:0!important;}
+ .topbar .auth-control{grid-column:3!important;grid-row:1!important;justify-self:end!important;display:flex!important;gap:4px!important;align-items:center!important;}
+ .topbar .auth-btn{font-size:10px!important;min-height:34px!important;padding:0 7px!important;white-space:nowrap!important;}
+ .topbar .help-dot{width:25px!important;height:25px!important;min-width:25px!important;}
+ .search-panel{margin-top:14px!important;margin-bottom:14px!important;padding:14px 13px 13px!important;}
+ .search-panel .panel-head{margin-bottom:12px!important;gap:8px!important;}
+ .search-panel .step{width:29px;height:29px;font-size:11px;}
+ .search-panel h2{font-size:16px!important;}
+ .search-panel .link-btn{font-size:11px!important;white-space:nowrap;}
+ .search-form{gap:7px!important;}
+ .search-form .input-wrap{min-height:41px!important;padding:0 11px!important;}
+ .search-form .input-wrap input{font-size:12px!important;}
+ .search-form .clear-input,.search-form .search-submit{min-height:38px!important;height:38px!important;font-size:12px!important;border-radius:9px!important;}
+ .search-form .search-submit span{font-size:17px!important;}
+ .search-panel .helper{margin-top:7px!important;font-size:9px!important;}
+ .channel-card .card-actions{gap:5px!important;}
+ .channel-card .card-actions button,.channel-card .card-actions a{min-height:30px!important;height:30px!important;font-size:10px!important;padding:0 5px!important;border-radius:7px!important;}
+ .modal .modal-head .iconbtn,
+ .modal .modal-head .iconbtn:hover,
+ .modal .modal-head .iconbtn:focus,
+ .modal .modal-head .iconbtn:focus-visible,
+ .modal .modal-head .iconbtn:active{outline:0!important;outline-offset:0!important;box-shadow:none!important;border:0!important;background:transparent!important;-webkit-tap-highlight-color:transparent!important;}
+ .modal .modal-head .iconbtn{appearance:none!important;-webkit-appearance:none!important;}
+}
+@media (max-width:400px){
+ .topbar{grid-template-columns:36px minmax(0,1fr) auto!important;gap:4px!important;}
+ .topbar .brand{font-size:14px!important;gap:4px!important;}
+ .topbar .brandicon{width:27px!important;height:27px!important;}
+ .topbar .brand small{display:none!important;}
+ .topbar .auth-btn{font-size:9px!important;padding:0 5px!important;min-height:31px!important;}
+ .topbar .help-dot{width:23px!important;min-width:23px!important;height:23px!important;}
+}
