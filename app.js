@@ -21,7 +21,7 @@ $('themeBtn').addEventListener('click',()=>{
 });
 
 const setting = name => String(cfg[name] || '').trim();
-const state = { source: null, items: [], nextPage: null, busy: false, token: '', expires: 0, tokenClient: null, connectedChannel: null, subscribed: new Set(), authResolve: null, loginBusy: false };
+const state = { source: null, viewMine: false, items: [], nextPage: null, busy: false, token: '', expires: 0, tokenClient: null, connectedChannel: null, subscribed: new Set(), authResolve: null, loginBusy: false };
 function toast(message, type = '') { const item = document.createElement('div');item.className = 'toast ' + type;item.textContent = message;$('toastHost').append(item);setTimeout(() => item.remove(), 5000); }
 function errorString(err) { const code = err?.reason || err?.message || String(err);const map = { quotaExceeded:'오늘의 YouTube API 할당량이 소진되었습니다.', dailyLimitExceeded:'오늘의 API 사용량 한도를 초과했습니다.', accessNotConfigured:'Google Cloud에서 YouTube Data API v3를 활성화해 주세요.', API_KEY_INVALID:'API 키가 올바르지 않습니다.', keyInvalid:'API 키를 확인해 주세요.', subscriptionForbidden:'이 채널은 구독 정보를 비공개로 설정했거나 구독 정보에 접근할 수 없습니다.', subscriptionDuplicate:'이미 구독 중인 채널입니다.', authenticatedUserAccountClosed:'이 계정에서는 YouTube를 사용할 수 없습니다.', insufficientPermissions:'유튜브 구독 권한이 승인되지 않았습니다.' }; return map[code] || code; }
 function cleanError(status, result) { const e = result?.error || {};const reason = e.errors?.[0]?.reason || e.status || '';if (status === 403 && /subscription|forbidden/i.test(reason)) return {reason:'subscriptionForbidden'};if (status === 403 && /subscription/i.test(e.message || '')) return {reason:'subscriptionForbidden'};if (status === 403 && !reason && /not authorized/i.test(e.message || '')) return {reason:'subscriptionForbidden'};return {reason, message: e.message || '요청에 실패했습니다. (HTTP ' + status + ')'}; }
@@ -64,8 +64,8 @@ async function resolveChannel(input) {
  return data.items[0];
 }
 function avatarOf(snippet) { const url = snippet?.thumbnails?.medium?.url || snippet?.thumbnails?.default?.url || ''; return /^https:\/\//.test(url) ? url : ''; }
-function sourceDisplay(channel) { $('sourceBanner').classList.remove('hidden');$('sourceName').textContent = channel.snippet?.title || channel.id;$('sourceAvatar').src = avatarOf(channel.snippet);$('sourceUrl').href = 'https://www.youtube.com/channel/' + channel.id;$('sourceCount').textContent = state.items.length.toLocaleString('ko-KR'); }
-function setBusy(flag) {state.busy = flag;$('searchBtn').disabled = flag;$('moreBtn').disabled = flag;$('refreshBtn').disabled = flag || !state.source;$('exportBtn').disabled = flag || !state.items.length;}
+function sourceDisplay(channel) { $('sourceBanner').classList.remove('hidden');$('sourceName').textContent = channel.snippet?.title || channel.id;$('sourceAvatar').src = avatarOf(channel.snippet);$('sourceUrl').href = 'https://www.youtube.com/channel/' + channel.id;$('sourceCount').textContent = state.items.length.toLocaleString('ko-KR');$('sourceCountLabel').textContent = state.viewMine ? '내 구독 채널' : '공개 구독 채널'; }
+function setBusy(flag) {state.busy = flag;$('searchBtn').disabled = flag;$('mySubsBtn').disabled = flag;$('moreBtn').disabled = flag;$('refreshBtn').disabled = flag || !state.source;$('exportBtn').disabled = flag || !state.items.length;}
 function empty(title, desc) { const root = $('channelGrid');root.replaceChildren();const emptyEl = document.createElement('div');emptyEl.className='empty';const icon=document.createElement('div');icon.className='empty-icon';icon.textContent='⌁';const h=document.createElement('h3');h.textContent=title;const p=document.createElement('p');p.textContent=desc;emptyEl.append(icon,h,p);root.append(emptyEl); }
 // 공개 구독 목록은 각 요청에서 최대 50개를 받습니다.
 // API가 다음 페이지 토큰을 제공하는 동안 자동으로 조회합니다.
@@ -75,7 +75,8 @@ async function fetchPage(reset) {
   $('moreWrap').classList.add('hidden');
   $('moreBtn').textContent = '남은 목록 이어서 불러오기 ↓';
   const sourceId = state.source.id;
-  const useMine = Boolean(state.connectedChannel === sourceId && state.token && Date.now() < state.expires);
+  const useMine = state.viewMine && Boolean(state.token && Date.now() < state.expires);
+  if (state.viewMine && !useMine) {setBusy(false);toast('내 목록 조회에는 Google 계정 재연결이 필요합니다.','error');return;}
   if (reset) { state.items = []; state.nextPage = null; }
   let cursor = reset ? null : state.nextPage;
   let pages = 0;
@@ -122,7 +123,7 @@ async function fetchPage(reset) {
     } while (cursor);
     completed = true;
     $('resultsSubtitle').textContent = `${state.items.length.toLocaleString('ko-KR')}개 조회 완료 · ${pages}페이지 · ${useMine ? '내 계정 구독 목록' : '공개 구독 목록'}`; 
-    if (!state.items.length) empty('공개 구독 채널이 없습니다', '공개 설정된 구독 채널이 없을 수 있습니다.');
+    if (!state.items.length) empty('구독 채널이 없습니다',state.viewMine?'이 계정에서 조회할 구독 채널이 없습니다.':'공개 설정된 구독 채널이 없을 수 있습니다.');
   } catch (err) {
     failed = true;
     const msg = errorString(err);
@@ -140,7 +141,7 @@ async function fetchPage(reset) {
 }
 async function search(raw) { if (state.busy) return; if (!setting('API_KEY')) { toast('사이트 인증 설정이 누락되었습니다. 운영자에게 문의해 주세요.','error');return; }
   setBusy(true);empty('채널을 확인하는 중입니다…','유튜브 정보를 확인하고 있습니다.');$('resultsSubtitle').textContent='채널 조회 중…';$('sourceBanner').classList.add('hidden');
-  state.items=[];state.nextPage=null;state.source=null;$('moreWrap').classList.add('hidden');$('filterInput').disabled=true;$('sortSelect').disabled=true;
+  state.viewMine=false;state.items=[];state.nextPage=null;state.source=null;$('moreWrap').classList.add('hidden');$('filterInput').disabled=true;$('sortSelect').disabled=true;
   try { state.source=await resolveChannel(raw); }catch(err){empty('채널을 찾을 수 없습니다',errorString(err));$('resultsSubtitle').textContent='채널 조회 실패';toast(errorString(err),'error');}finally{setBusy(false);}
   if (state.source) await fetchPage(true);
 }
@@ -191,10 +192,7 @@ async function loadMyChannel() {
     const ids = (result.items || []).map(item => item.id).filter(Boolean);
     // With multiple brand channels, use mine=true only when the OAuth identity is unambiguous.
     state.connectedChannel = ids.length === 1 ? ids[0] : null;
-    if (state.source && state.connectedChannel === state.source.id && !state.busy) {
-      toast('조회 대상이 연결된 내 채널입니다. 새로고침 시 비공개 구독을 포함해 내 계정 기준으로 확인합니다.','success');
-      await fetchPage(true);
-    }
+    // URL 검색은 항상 입력한 채널의 공개 목록을 조회합니다. 내 목록은 별도 버튼으로만 전환합니다.
   } catch(err) {console.warn('OAuth 채널 확인 실패:',errorString(err));}
 }
 async function refreshMine() {
@@ -241,16 +239,95 @@ $('authHelpOkayBtn').addEventListener('click',()=>$('authHelpDialog').close());
 $('loginBtn').addEventListener('click',async()=>{try{await connect();}catch(err){toast(errorString(err),'error');}});
 $('guideBtn').addEventListener('click',()=>$('guideDialog').showModal());$('guideOkayBtn').addEventListener('click',()=>$('guideDialog').close());$('closeGuideBtn').addEventListener('click',()=>$('guideDialog').close());
 $('searchForm').addEventListener('submit',event=>{event.preventDefault();search($('channelInput').value);});
-$('refreshBtn').addEventListener('click',()=>{
-  toast('YouTube에 최신 목록을 요청합니다. 구독 취소 직후라면 API 반영까지 시간이 걸릴 수 있습니다.');
-  fetchPage(true);
+$('mySubsBtn').addEventListener('click', async()=>{
+  if(state.busy)return;
+  try {
+    if(!state.token || Date.now()>=state.expires)await connect();
+    const data=await youtube('channels',{part:'snippet',mine:true,maxResults:50},{auth:true});
+    const own=data.items?.[0];
+    if(!own)throw new Error('연결된 Google 계정에서 YouTube 채널을 찾지 못했습니다.');
+    if((data.items||[]).length>1)toast('여러 YouTube 채널이 있습니다. 로그인 시 선택된 채널 기준으로 표시됩니다.');
+    state.viewMine=true;state.source=own;state.items=[];state.nextPage=null;
+    $('filterInput').disabled=false;$('sortSelect').disabled=false;
+    $('sourceBanner').classList.remove('hidden');
+    await fetchPage(true);
+  } catch(err){toast('내 목록 조회 실패: '+errorString(err),'error');}
 });
+// 새로고침은 이전 데이터를 보존한 채 모든 API 페이지를 다시 받아온 후 한 번에 교체합니다.
+async function refreshLatestSubscriptions() {
+  if (state.busy || !state.source) return;
+  const sourceId = state.source.id;
+  const mine = state.viewMine;
+  if (mine && (!state.token || Date.now() >= state.expires)) {
+    toast('내 구독 목록을 갱신하려면 Google 계정을 다시 연결해 주세요.', 'error');
+    return;
+  }
+  const previous = state.items;
+  const beforeIds = new Set(previous.map(item => item.id));
+  const freshItems = [];
+  const seenIds = new Set();
+  const visitedTokens = new Set();
+  let cursor = null;
+  let pages = 0;
+  setBusy(true);
+  $('refreshBtn').textContent = '↻ 갱신 중…';
+  $('resultsSubtitle').textContent = mine ? '내 구독 변경사항 확인 중…' : '공개 구독 목록의 최신 상태 확인 중…';
+  try {
+    do {
+      if (cursor && visitedTokens.has(cursor)) throw new Error('YouTube 페이지 토큰이 반복되어 조회를 중단했습니다.');
+      if (cursor) visitedTokens.add(cursor);
+      const data = await youtube('subscriptions', {
+        part: 'snippet',
+        ...(mine ? {mine: true} : {channelId: sourceId}),
+        maxResults: 50,
+        pageToken: cursor || undefined
+      }, mine ? {auth: true} : {});
+      for (const sub of data.items || []) {
+        const id = sub.snippet?.resourceId?.channelId || '';
+        if (!/^UC[\w-]{22}$/.test(id) || seenIds.has(id)) continue;
+        seenIds.add(id);
+        freshItems.push({
+          id,
+          title: sub.snippet?.title || '이름 없는 채널',
+          description: sub.snippet?.description || '',
+          avatar: avatarOf(sub.snippet),
+          publishedAt: sub.snippet?.publishedAt || '',
+          order: freshItems.length
+        });
+      }
+      cursor = data.nextPageToken || null;
+      pages++;
+      $('resultsSubtitle').textContent = `최신 목록 확인 중 · ${freshItems.length.toLocaleString('ko-KR')}개 · ${pages}페이지`;
+      if (cursor) await new Promise(resolve => setTimeout(resolve, 0));
+    } while (cursor);
+    if (state.source?.id !== sourceId || state.viewMine !== mine) return;
+    const added = freshItems.filter(item => !beforeIds.has(item.id)).length;
+    const removed = previous.filter(item => !seenIds.has(item.id)).length;
+    state.items = freshItems;
+    state.nextPage = null;
+    $('moreWrap').classList.add('hidden');
+    $('resultsSubtitle').textContent = `${freshItems.length.toLocaleString('ko-KR')}개 최신 조회 완료 · 추가 ${added}개 · 삭제 ${removed}개 · ${pages}페이지`;
+    sourceDisplay(state.source);
+    render();
+    if (!freshItems.length) empty('구독 채널이 없습니다', '현재 API에서 반환된 구독 채널이 없습니다.');
+    toast(added || removed ? `변경사항 반영: 추가 ${added}개, 삭제 ${removed}개` : 'YouTube API 기준 변경사항이 없습니다. 반영 지연이 있을 수 있습니다.', added || removed ? 'success' : '');
+    if (mine) refreshMine().catch(() => {});
+  } catch (error) {
+    state.items = previous;
+    $('resultsSubtitle').textContent = `새로고침 실패 · 이전 목록 ${previous.length.toLocaleString('ko-KR')}개 유지`;
+    toast('최신 목록 갱신 실패: ' + errorString(error), 'error');
+  } finally {
+    $('refreshBtn').textContent = '↻ 새로고침';
+    setBusy(false);
+  }
+}
+$('refreshBtn').addEventListener('click', refreshLatestSubscriptions);
 $('moreBtn').addEventListener('click',()=>fetchPage(false));$('exportBtn').addEventListener('click',exportCsv);$('filterInput').addEventListener('input',render);$('sortSelect').addEventListener('change',render);
 if(!setting('API_KEY')) {$('resultsSubtitle').textContent='사이트 API 설정이 필요합니다.';}
 })();
 
 // 구독 채널 리스트: YouTube 앱 링크 처리 도움말
-$('youtubeLinkHelpBtn').addEventListener('click', () => $('youtubeLinkHelpDialog').showModal());
-$('closeYoutubeLinkHelpBtn').addEventListener('click', () => $('youtubeLinkHelpDialog').close());
-$('youtubeLinkHelpOkayBtn').addEventListener('click', () => $('youtubeLinkHelpDialog').close());
-$('youtubeLinkHelpDialog').addEventListener('click', (e) => { if(e.target === e.currentTarget) e.currentTarget.close(); });
+document.getElementById('youtubeLinkHelpBtn').addEventListener('click', () => document.getElementById('youtubeLinkHelpDialog').showModal());
+document.getElementById('closeYoutubeLinkHelpBtn').addEventListener('click', () => document.getElementById('youtubeLinkHelpDialog').close());
+document.getElementById('youtubeLinkHelpOkayBtn').addEventListener('click', () => document.getElementById('youtubeLinkHelpDialog').close());
+document.getElementById('youtubeLinkHelpDialog').addEventListener('click', (e) => { if(e.target === e.currentTarget) e.currentTarget.close(); });

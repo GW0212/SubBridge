@@ -199,3 +199,8 @@ body{min-height:100vh;min-height:100dvh}
 :root[data-theme="dark"]{background:#0a101a}
 :root[data-theme="dark"] body{background:#0a101a}
 :root[data-theme="light"]{background:#f7f9fc}
+
+/* 본인 구독 목록 버튼: 작은 화면에서 조작 가능한 크기 유지 */
+.results-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+#mySubsBtn{white-space:nowrap}
+@media(max-width:640px){.results-actions{width:100%;justify-content:flex-start}.results-actions button{min-height:40px}}
