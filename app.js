@@ -210,15 +210,20 @@ const OPEN_PREF_KEY = 'subbridge_youtube_open_preference_v1';
 let pendingOpenChannel = null;
 function getOpenPreference(){try{const v=localStorage.getItem(OPEN_PREF_KEY);return v==='app'||v==='web'?v:null;}catch(_){return null;}}
 function storeOpenPreference(value){try{if(value)localStorage.setItem(OPEN_PREF_KEY,value);else localStorage.removeItem(OPEN_PREF_KEY);}catch(_){}}
-function subscriptionUrl(channelId, mode){
-  // 데스크톱 브라우저에 설치된 PWA는 www.youtube.com URL을 포착할 수 있습니다.
-  // m.youtube.com은 브라우저로 열기를 위한 별도 호스트입니다. 기기 설정에 따라 앱 연결될 수도 있습니다.
-  const hostname=mode==='web'?'m.youtube.com':'www.youtube.com';
-  return 'https://'+hostname+'/channel/'+channelId+'?sub_confirmation=1';
+function subscriptionUrl(channelId){
+  return 'https://www.youtube.com/channel/'+channelId+'?sub_confirmation=1';
 }
 function launchTarget(id,mode){
   if(!/^UC[\w-]{22}$/.test(id)){toast('유효한 채널 ID가 아닙니다.','error');return;}
-  const url=subscriptionUrl(id,mode);
+  const url=subscriptionUrl(id);
+  if(mode==='web'){
+    // 기존 버전의 _blank 새 창 이동은 Chrome의 설치된 YouTube PWA 링크 캡처 대상이었습니다.
+    // 현재 탭 내 이동은 새 프레임 생성이 없어 캡처를 피할 가능성이 더 높습니다.
+    // 브라우저 정책에 따라 완전한 강제는 불가능합니다.
+    window.location.assign(url);
+    return;
+  }
+  // 앱 열기는 브라우저/운영체제의 기본 링크 처리 정책에 맡깁니다.
   const tab=window.open(url,'_blank','noopener,noreferrer');
   if(!tab){toast('팝업이 차단되었습니다. 새 탭 허용 후 다시 시도해 주세요.','error');}
 }
@@ -249,7 +254,7 @@ $('openPrefsBtn').addEventListener('click',()=>showOpenChoice(null));
 $('resetOpenPrefBtn').addEventListener('click',()=>{storeOpenPreference(null);$('rememberOpenChoice').checked=false;toast('저장된 열기 방식이 초기화되었습니다.','success');});
 $('copyChannelUrlBtn').addEventListener('click',async()=>{
   if(!pendingOpenChannel){toast('구독 목록에서 채널을 선택하면 링크를 복사할 수 있습니다.');return;}
-  const url=subscriptionUrl(pendingOpenChannel,'web');
+  const url=subscriptionUrl(pendingOpenChannel);
   try{await navigator.clipboard.writeText(url);toast('채널 링크를 복사했습니다.','success');}catch(_){toast('링크 복사에 실패했습니다.','error');}
 });
 
