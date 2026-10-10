@@ -265,9 +265,9 @@ function render() {
   });root.append(fragment);
 }
 function waitForGIS(){return new Promise((resolve,reject)=>{if(window.google?.accounts?.oauth2) return resolve();let n=0;const timer=setInterval(()=>{if(window.google?.accounts?.oauth2){clearInterval(timer);resolve();}else if(++n>=50){clearInterval(timer);reject(new Error('Google 로그인 스크립트 로딩에 실패했습니다. 네트워크 또는 광고 차단 설정을 확인해 주세요.'));}},100);});}
-async function connect() {
+async function connect(forceAccountSelection = false) {
  const clientId=setting('OAUTH_CLIENT_ID');if(!clientId) { throw new Error('Google OAuth 설정이 누락되었습니다. 운영자에게 문의해 주세요.'); }
- if(state.token && Date.now()<state.expires) return;
+ if(!forceAccountSelection && state.token && Date.now()<state.expires) return;
  if(state.authResolve) throw new Error('Google 로그인 창이 이미 열려 있습니다.');
  await waitForGIS();
  return new Promise((resolve,reject)=>{
@@ -277,10 +277,26 @@ async function connect() {
     state.tokenClient=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:'https://www.googleapis.com/auth/youtube',callback:response=>{
       clearTimeout(timeout);state.authResolve=null;
       if(response.error || !response.access_token){reject(new Error(response.error_description || response.error || '로그인을 취소했거나 권한이 승인되지 않았습니다.'));return;}
+      // A successful account switch invalidates account-specific subscriptions and identity.
+      // If the user cancels the Google chooser, the old connection is left intact.
+      if(forceAccountSelection){
+        state.connectedChannel=null;
+        state.subscribed=new Set();
+        if(state.viewMine){
+          state.viewMine=false;
+          state.source=null;
+          state.items=[];
+          state.nextPage=null;
+          $('sourceBanner').classList.add('hidden');
+          $('syncNote').classList.add('hidden');
+          render();
+          updateControls();
+        } else if(state.items.length){render();}
+      }
       state.token=response.access_token;state.expires=Date.now()+(Number(response.expires_in || 3500)-40)*1000;
       $('loginBtn').textContent='✓ 계정 연결됨';toast('Google 계정 인증이 완료되었습니다.','success');resolve();loadMyChannel().catch(()=>{});
     },error_callback:err=>{clearTimeout(timeout);state.authResolve=null;reject(new Error(err?.message || err?.type || '계정 연결이 취소되었습니다.'));}});
-    state.tokenClient.requestAccessToken({prompt:'consent'});
+    state.tokenClient.requestAccessToken({prompt:forceAccountSelection?'select_account consent':'consent'});
   }catch(err){clearTimeout(timeout);state.authResolve=null;reject(err);}
  });
 }
@@ -357,7 +373,20 @@ $('clearInputBtn').addEventListener('click',()=>{$('channelInput').value='';$('c
 $('authHelpBtn').addEventListener('click',()=>openHelpDialog('authHelpDialog'));
 $('closeAuthHelpBtn').addEventListener('click',()=>$('authHelpDialog').close());
 $('authHelpOkayBtn').addEventListener('click',()=>$('authHelpDialog').close());
-$('loginBtn').addEventListener('click',async()=>{try{await connect();}catch(err){toast(errorString(err),'error');}});
+$('loginBtn').addEventListener('click',async()=>{
+  if(state.token && Date.now()<state.expires){
+    openHelpDialog('accountChoiceDialog');
+    return;
+  }
+  try{await connect();}catch(err){toast(errorString(err),'error');}
+});
+$('closeAccountChoiceBtn').addEventListener('click',()=>$('accountChoiceDialog').close());
+$('keepAccountBtn').addEventListener('click',()=>{$('accountChoiceDialog').close();toast('현재 연결된 구글 계정을 유지합니다.','success');});
+$('switchAccountBtn').addEventListener('click',async()=>{
+  $('accountChoiceDialog').close();
+  try { await connect(true); }
+  catch(err){ toast(errorString(err),'error'); }
+});
 $('guideBtn').addEventListener('click',()=>openHelpDialog('guideDialog'));$('guideOkayBtn').addEventListener('click',()=>$('guideDialog').close());$('closeGuideBtn').addEventListener('click',()=>$('guideDialog').close());
 $('searchForm').addEventListener('submit',event=>{
   event.preventDefault();
@@ -369,7 +398,7 @@ $('searchForm').addEventListener('submit',event=>{
   search(query);
 });
 // Modal openers should not leave the close control in a focused/highlighted state.
-for(const id of ['guideDialog','authHelpDialog','youtubeLinkHelpDialog']){
+for(const id of ['guideDialog','authHelpDialog','youtubeLinkHelpDialog','accountChoiceDialog']){
   const dialog=$(id);
   if(!dialog)continue;
   dialog.addEventListener('close',()=>{const active=document.activeElement;if(active instanceof HTMLElement&&dialog.contains(active))active.blur();});

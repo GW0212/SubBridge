@@ -375,3 +375,9 @@ body{min-height:100vh;min-height:100dvh}
   #channelInput { font-size:16px!important; letter-spacing:-.3px; }
   .search-form .input-wrap { gap:8px!important; }
 }
+
+/* Google account management: small responsive choice dialog */
+.account-choice-modal{max-width:min(440px,94vw)}
+.account-choice-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px}
+.account-choice-button{min-width:0;min-height:45px;font-size:13px;padding:0 12px}
+@media(max-width:420px){.account-choice-actions{grid-template-columns:1fr}.account-choice-button{min-height:42px}}
