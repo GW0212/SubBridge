@@ -157,3 +157,37 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{ou
  .topbar .brand small{display:block;font-size:7px;letter-spacing:1px;}
 }
 @media(max-width:390px){.topbar .brand small{font-size:6px;letter-spacing:.65px;}}
+
+
+/* Visual polish v3: restrained motion, responsive, reduced-motion aware */
+:root{--sb-ease:cubic-bezier(.2,.75,.24,1)}
+body{position:relative}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:radial-gradient(ellipse 52% 38% at 88% 7%,rgba(255,105,115,.065),transparent 75%),radial-gradient(ellipse 50% 42% at 7% 75%,rgba(45,163,155,.04),transparent 80%)}
+:root[data-theme="dark"] body::before{background:radial-gradient(ellipse 52% 40% at 88% 8%,rgba(255,105,115,.08),transparent 75%),radial-gradient(ellipse 50% 42% at 7% 75%,rgba(45,163,155,.06),transparent 80%)}
+.search-panel,.workspace{position:relative;isolation:isolate;overflow:hidden;transition:box-shadow .28s var(--sb-ease),border-color .28s var(--sb-ease)}
+.search-panel::before,.workspace::before{content:"";position:absolute;top:0;left:7%;right:7%;height:1px;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(241,93,108,.38),transparent);opacity:.65}
+.search-panel:hover,.workspace:hover{border-color:color-mix(in srgb,var(--line) 68%,#ef7b86 32%)}
+.brandicon{transition:transform .3s var(--sb-ease),box-shadow .3s var(--sb-ease);box-shadow:0 8px 18px rgba(245,81,92,.16)}
+.brand:hover .brandicon{transform:rotate(-6deg) translateY(-2px);box-shadow:0 10px 21px rgba(245,81,92,.26)}
+.primary,.ghost,.link-btn,.help-dot,.iconbtn,.outlink,.subscribe{transition:background-color .23s ease,border-color .23s ease,color .23s ease,transform .23s var(--sb-ease),box-shadow .23s ease,filter .23s ease}
+.primary:not(:disabled):active,.ghost:not(:disabled):active,.outlink:active,.subscribe:not(:disabled):active{transform:translateY(1px) scale(.985)}
+.primary:hover:not(:disabled){box-shadow:0 10px 27px rgba(240,75,90,.26)}
+.ghost:hover:not(:disabled),.outlink:hover{transform:translateY(-1px)}
+button:focus-visible,a:focus-visible,select:focus-visible,.input-wrap:focus-within{outline:2px solid #ec7b87;outline-offset:3px}
+.input-wrap:focus-within{outline:none;box-shadow:0 0 0 3px rgba(235,108,121,.16),0 7px 23px rgba(53,77,99,.09)}
+.channel-card{position:relative;overflow:hidden;transition:transform .24s var(--sb-ease),box-shadow .24s ease,border-color .24s ease}
+.channel-card::before{content:"";position:absolute;inset:0 0 auto;height:2px;transform:scaleX(0);transform-origin:left center;background:linear-gradient(90deg,#ee6671,#76c9c1);transition:transform .28s var(--sb-ease);pointer-events:none}
+.channel-card:hover::before,.channel-card:focus-within::before{transform:scaleX(1)}
+.channel-card .avatar{transition:transform .32s var(--sb-ease)}
+.channel-card:hover .avatar{transform:scale(1.045)}
+.channel-card:nth-child(6n + 2){animation-delay:35ms}
+.channel-card:nth-child(6n + 3){animation-delay:70ms}
+.channel-card:nth-child(6n + 4){animation-delay:105ms}
+.channel-card:nth-child(6n + 5){animation-delay:140ms}
+.channel-card:nth-child(6n + 6){animation-delay:175ms}
+.source-count strong{font-variant-numeric:tabular-nums}
+.toast{animation:sb-toast-in .25s var(--sb-ease) both}
+@keyframes sb-toast-in{from{opacity:0;transform:translateY(9px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(hover:none){.channel-card:hover{transform:none;box-shadow:0 3px 12px #0c1e3010}.brand:hover .brandicon{transform:none}.ghost:hover:not(:disabled),.outlink:hover{transform:none}}
+@media(max-width:600px){.search-panel,.workspace{overflow:visible}.search-panel::before,.workspace::before{display:none}.channel-card:nth-child(n){animation-delay:0ms}.channel-card:hover .avatar{transform:none}}
+@media(prefers-reduced-motion:reduce){.channel-card:nth-child(n),.toast{animation:none!important}.search-panel,.workspace,.brandicon,.primary,.ghost,.link-btn,.help-dot,.iconbtn,.outlink,.subscribe,.channel-card,.channel-card::before,.channel-card .avatar{transition:none!important}}
