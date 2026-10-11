@@ -395,3 +395,5 @@ body{min-height:100vh;min-height:100dvh}
 .bulk-progress-track{height:8px;background:var(--border);border-radius:10px;overflow:hidden}
 #bulkProgressFill{height:100%;width:0;background:linear-gradient(90deg,#ef6b74,#ff9e7e);transition:width .2s}
 @media(max-width:600px){.bulk-subscribe-modal .modal-inner{padding:18px}.bulk-stats{font-size:12px}.bulk-actions button{flex:1}}
+
+.legal-links{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:22px 10px 34px;font-size:12px;opacity:.85}.legal-links a{color:var(--muted, #667085);text-decoration:none}.legal-links a:hover{text-decoration:underline}.legal-links span{color:var(--muted, #667085)}
