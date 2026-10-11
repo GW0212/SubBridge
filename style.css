@@ -381,3 +381,17 @@ body{min-height:100vh;min-height:100dvh}
 .account-choice-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px}
 .account-choice-button{min-width:0;min-height:45px;font-size:13px;padding:0 12px}
 @media(max-width:420px){.account-choice-actions{grid-template-columns:1fr}.account-choice-button{min-height:42px}}
+
+/* 모두 구독: explicit user confirmation + progress */
+#bulkSubscribeBtn{white-space:nowrap}
+.bulk-subscribe-modal{max-width:min(520px,calc(100vw - 28px))}
+.bulk-subscribe-modal .modal-inner{max-width:100%}
+.bulk-stats{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;margin:14px 0;padding:12px;border:1px solid var(--border);border-radius:12px;font-size:13px}
+.bulk-consent{display:flex;align-items:flex-start;gap:10px;padding:11px 0;font-size:13px;line-height:1.6;cursor:pointer}
+.bulk-consent input{width:18px;height:18px;flex-shrink:0;margin-top:2px;accent-color:#eb5565}
+.bulk-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.bulk-actions button{min-height:42px;padding:10px 14px}
+.bulk-progress-area{margin-top:12px;white-space:pre-line;font-size:13px;line-height:1.55}
+.bulk-progress-track{height:8px;background:var(--border);border-radius:10px;overflow:hidden}
+#bulkProgressFill{height:100%;width:0;background:linear-gradient(90deg,#ef6b74,#ff9e7e);transition:width .2s}
+@media(max-width:600px){.bulk-subscribe-modal .modal-inner{padding:18px}.bulk-stats{font-size:12px}.bulk-actions button{flex:1}}

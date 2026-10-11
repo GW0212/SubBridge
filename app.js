@@ -40,7 +40,7 @@ function tooSoon(kind, ms = 6000) {
   lastRequests.set(kind, now);
   return false;
 }
-const state = { source: null, viewMine: false, items: [], nextPage: null, busy: false, token: '', expires: 0, tokenClient: null, connectedChannel: null, subscribed: new Set(), authResolve: null, loginBusy: false };
+const state = { source: null, viewMine: false, items: [], nextPage: null, busy: false, token: '', expires: 0, tokenClient: null, connectedChannel: null, subscribed: new Set(), authResolve: null, loginBusy: false, bulk: {running:false, cancel:false} };
 function toast(message, type = '') {
   const host = $('toastHost');
   host.replaceChildren(); // 반복 알림이 화면 중앙에 쌓이지 않게 최신 안내만 표시
@@ -128,7 +128,7 @@ async function resolveChannel(input) {
 }
 function avatarOf(snippet) { const url = snippet?.thumbnails?.medium?.url || snippet?.thumbnails?.default?.url || ''; return /^https:\/\//.test(url) ? url : ''; }
 function sourceDisplay(channel) { $('sourceBanner').classList.remove('hidden');$('sourceName').textContent = channel.snippet?.title || channel.id;$('sourceAvatar').src = avatarOf(channel.snippet);$('sourceUrl').href = 'https://www.youtube.com/channel/' + channel.id;$('sourceCount').textContent = state.items.length.toLocaleString('ko-KR');$('sourceCountLabel').textContent = state.viewMine ? '내 구독 채널' : '공개 구독 채널'; }
-function setBusy(flag) {state.busy = flag;$('searchBtn').disabled = flag;$('mySubsBtn').disabled = flag;$('ownerVerifyBtn').disabled = flag || !state.source;$('moreBtn').disabled = flag;$('refreshBtn').disabled = flag || !state.source;$('exportBtn').disabled = flag || !state.items.length;}
+function setBusy(flag) {state.busy = flag;$('searchBtn').disabled = flag;$('mySubsBtn').disabled = flag;$('ownerVerifyBtn').disabled = flag || !state.source;$('moreBtn').disabled = flag;$('refreshBtn').disabled = flag || !state.source;$('exportBtn').disabled = flag || !state.items.length;$('bulkSubscribeBtn').disabled = flag || !state.items.length || state.viewMine || state.bulk.running;}
 function empty(title, desc) { const root = $('channelGrid');root.replaceChildren();const emptyEl = document.createElement('div');emptyEl.className='empty';const icon=document.createElement('div');icon.className='empty-icon';icon.textContent='⌁';const h=document.createElement('h3');h.textContent=title;const p=document.createElement('p');p.textContent=desc;emptyEl.append(icon,h,p);root.append(emptyEl); }
 // 공개 구독 목록은 각 요청에서 최대 50개를 받습니다.
 // API가 다음 페이지 토큰을 제공하는 동안 자동으로 조회합니다.
@@ -290,7 +290,7 @@ async function connect(forceAccountSelection = false) {
           $('sourceBanner').classList.add('hidden');
           $('syncNote').classList.add('hidden');
           render();
-          updateControls();
+          setBusy(false);
         } else if(state.items.length){render();}
       }
       state.token=response.access_token;state.expires=Date.now()+(Number(response.expires_in || 3500)-40)*1000;
@@ -355,6 +355,109 @@ async function unsubscribe(channel, button){
     // Do not automatically re-fetch stale public snapshots immediately after a confirmed DELETE.
   }catch(err){button.disabled=false;button.textContent='구독 취소';toast('구독 취소 실패: '+errorString(err),'error');}
 }
+// Bulk subscriptions are initiated only after explicit per-operation consent.
+// To conserve quota, scan existing subscriptions once, then send sequential writes.
+const BULK_DELAY_MS=950;
+const bulkSleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const validChannelId=id=>/^UC[\w-]{22}$/.test(id);
+function bulkEligible(){return [...new Map(state.items.filter(x=>validChannelId(x.id)).map(x=>[x.id,x])).values()];}
+function bulkProgress(done,total,ok,skipped,failed,status=''){
+  $('bulkProgressArea').classList.remove('hidden');
+  $('bulkProgressFill').style.width = (total ? (100*done/total) : 100)+'%';
+  $('bulkProgressText').textContent=`${done}/${total} 처리 · 구독 성공 ${ok} · 이미 구독 중 ${skipped} · 실패 ${failed}` + (status?'\n'+status:'');
+}
+function showBulkDialog(){
+  if(state.bulk.running || !state.items.length || state.viewMine || state.busy)return;
+  const channels=bulkEligible();
+  $('bulkConsent').checked=false;
+  $('bulkStartBtn').disabled=true;
+  $('bulkTotal').textContent=channels.length.toLocaleString('ko-KR');
+  $('bulkQuota').textContent=(channels.length*50).toLocaleString('ko-KR');
+  $('bulkProgressArea').classList.add('hidden');
+  $('bulkSubscribeDescription').textContent=`현재 불러온 ${channels.length.toLocaleString('ko-KR')}개 채널을 연결할 YouTube 계정에서 구독합니다. 이미 구독 중인 채널은 가능한 한 건너뜁니다.`;
+  $('bulkCancelBtn').textContent='닫기';
+  $('bulkStartBtn').textContent='모두 구독 시작';
+  $('bulkSubscribeDialog').showModal();
+}
+async function loadExistingForBulk(){
+  const ids=new Set();let pageToken;let pages=0;
+  do {
+    const result=await youtube('subscriptions',{part:'snippet',mine:true,maxResults:50,pageToken},{auth:true});
+    for(const item of result.items||[]){const id=item.snippet?.resourceId?.channelId;if(id)ids.add(id);}
+    pageToken=result.nextPageToken;
+    if(++pages>250)throw new Error('구독 목록 페이지가 비정상적으로 많아 안전하게 중단했습니다.');
+  } while(pageToken);
+  return ids;
+}
+async function executeBulk(){
+  if(state.bulk.running || !state.items.length || state.viewMine || !($('bulkConsent').checked))return;
+  state.bulk.running=true;state.bulk.cancel=false;
+  $('bulkStartBtn').disabled=true;
+  $('bulkCancelBtn').textContent='중단';
+  $('closeBulkSubscribeBtn').disabled=true;
+  setBusy(true);
+  const targets=bulkEligible();let done=0,success=0,skipped=0,failed=0,consecutive=0,reason='';
+  try{
+    if(!state.token || Date.now()>=state.expires){
+      $('bulkProgressArea').classList.remove('hidden');
+      $('bulkProgressText').textContent='Google 계정을 연결해 주세요.';
+      // OAuth account chooser is explicitly triggered by clicking the start button.
+      await connect();
+    }
+    // The full authenticated subscription snapshot is required to avoid 50-unit duplicate attempts.
+    const existing=await loadExistingForBulk();
+    state.subscribed=new Set(existing);
+    render();
+    bulkProgress(0,targets.length,0,0,0,'기존 구독을 확인했습니다.');
+    for (const channel of targets){
+      if(state.bulk.cancel){reason='사용자가 중단했습니다.';break;}
+      if(existing.has(channel.id)){
+        skipped++;done++;bulkProgress(done,targets.length,success,skipped,failed);continue;
+      }
+      try{
+        const result=await youtube('subscriptions',{part:'snippet'},{auth:true,method:'POST',body:{snippet:{resourceId:{kind:'youtube#channel',channelId:channel.id}}}});
+        if(!result.id)throw new Error('YouTube가 구독 완료 응답을 반환하지 않았습니다.');
+        existing.add(channel.id);state.subscribed.add(channel.id);success++;consecutive=0;
+      }catch(err){
+        if(err.reason==='subscriptionDuplicate'){
+          existing.add(channel.id);state.subscribed.add(channel.id);skipped++;consecutive=0;
+        }else{
+          failed++;consecutive++;
+          const stopReasons=['quotaExceeded','dailyLimitExceeded','rateLimitExceeded','userRateLimitExceeded','subscriptionForbidden','insufficientPermissions','forbidden','PERMISSION_DENIED'];
+          if(stopReasons.includes(err.reason) || err.status===401 || err.status===429 || consecutive>=3){
+            reason='API 제한 또는 인증 오류로 중단: '+errorString(err);done++;bulkProgress(done,targets.length,success,skipped,failed,reason);break;
+          }
+        }
+      }
+      done++;bulkProgress(done,targets.length,success,skipped,failed);
+      if(done%5===0)render();
+      // Cancellable delay avoids bursts and is not retried on rate/quota denial.
+      if(done<targets.length){for(let i=0;i<5&&!state.bulk.cancel;i++)await bulkSleep(BULK_DELAY_MS/5);}
+    }
+    render();
+    bulkProgress(done,targets.length,success,skipped,failed,reason || '작업이 종료되었습니다.');
+    toast(`모두 구독 결과: 성공 ${success}개 · 기존 구독 ${skipped}개 · 실패 ${failed}개`+(reason?' · 중단됨':''),reason?'error':'success');
+  }catch(err){
+    reason=errorString(err);bulkProgress(done,targets.length,success,skipped,failed,'조회/연결 실패: '+reason);
+    toast('모두 구독 실행 실패: '+reason,'error');
+  }finally{
+    state.bulk.running=false;state.bulk.cancel=false;
+    $('closeBulkSubscribeBtn').disabled=false;
+    $('bulkCancelBtn').textContent='닫기';
+    $('bulkStartBtn').textContent='완료';
+    $('bulkStartBtn').disabled=true;
+    setBusy(false);
+  }
+}
+$('bulkSubscribeBtn').addEventListener('click',showBulkDialog);
+$('bulkConsent').addEventListener('change',()=>{$('bulkStartBtn').disabled=!$('bulkConsent').checked;});
+$('bulkStartBtn').addEventListener('click',executeBulk);
+$('bulkCancelBtn').addEventListener('click',()=>{if(state.bulk.running){state.bulk.cancel=true;$('bulkCancelBtn').textContent='중단 요청 중…';$('bulkCancelBtn').disabled=true;}else $('bulkSubscribeDialog').close();});
+$('bulkSubscribeDialog').addEventListener('close',()=>{$('bulkCancelBtn').disabled=false;});
+$('closeBulkSubscribeBtn').addEventListener('click',()=>{if(!state.bulk.running)$('bulkSubscribeDialog').close();});
+$('bulkSubscribeDialog').addEventListener('cancel',event=>{if(state.bulk.running)event.preventDefault();});
+$('bulkSubscribeDialog').addEventListener('click',event=>{if(event.target===event.currentTarget&&!state.bulk.running)event.currentTarget.close();});
+
 function exportCsv(){if(!state.items.length)return;const csvCell=x=>'"'+String(x??'').replace(/"/g,'""')+'"';const rows=[['채널명','채널 ID','채널 URL','설명','구독 공개 데이터 날짜'],...state.items.map(x=>[x.title,x.id,'https://www.youtube.com/channel/'+x.id,x.description,x.publishedAt])];const blob=new Blob(['\ufeff'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='SubBridge_'+(state.source?.id||'subscriptions')+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
 
 // 브라우저 / 운영체제에서 설정한 링크 처리 규칙에 맡깁니다.
