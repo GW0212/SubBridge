@@ -40,6 +40,7 @@ function tooSoon(kind, ms = 6000) {
   lastRequests.set(kind, now);
   return false;
 }
+const playlistState = {channelId:null,items:[],loading:false,requestId:0};
 const state = { source: null, viewMine: false, items: [], nextPage: null, busy: false, token: '', expires: 0, tokenClient: null, connectedChannel: null, subscribed: new Set(), authResolve: null, loginBusy: false, bulk: {running:false, cancel:false} };
 function toast(message, type = '') {
   const host = $('toastHost');
@@ -127,7 +128,7 @@ async function resolveChannel(input) {
  return data.items[0];
 }
 function avatarOf(snippet) { const url = snippet?.thumbnails?.medium?.url || snippet?.thumbnails?.default?.url || ''; return /^https:\/\//.test(url) ? url : ''; }
-function sourceDisplay(channel) { $('sourceBanner').classList.remove('hidden');$('sourceName').textContent = channel.snippet?.title || channel.id;$('sourceAvatar').src = avatarOf(channel.snippet);$('sourceUrl').href = 'https://www.youtube.com/channel/' + channel.id;$('sourceCount').textContent = state.items.length.toLocaleString('ko-KR');$('sourceCountLabel').textContent = state.viewMine ? '내 구독 채널' : '공개 구독 채널'; }
+function sourceDisplay(channel) { $('loadPlaylistsBtn').disabled = playlistState.loading || !channel?.id; $('sourceBanner').classList.remove('hidden');$('sourceName').textContent = channel.snippet?.title || channel.id;$('sourceAvatar').src = avatarOf(channel.snippet);$('sourceUrl').href = 'https://www.youtube.com/channel/' + channel.id;$('sourceCount').textContent = state.items.length.toLocaleString('ko-KR');$('sourceCountLabel').textContent = state.viewMine ? '내 구독 채널' : '공개 구독 채널'; }
 function setBusy(flag) {state.busy = flag;$('searchBtn').disabled = flag;$('mySubsBtn').disabled = flag;$('ownerVerifyBtn').disabled = flag || !state.source;$('moreBtn').disabled = flag;$('refreshBtn').disabled = flag || !state.source;$('exportBtn').disabled = flag || !state.items.length;$('bulkSubscribeBtn').disabled = flag || !state.items.length || state.viewMine || state.bulk.running;}
 function empty(title, desc) { const root = $('channelGrid');root.replaceChildren();const emptyEl = document.createElement('div');emptyEl.className='empty';const icon=document.createElement('div');icon.className='empty-icon';icon.textContent='⌁';const h=document.createElement('h3');h.textContent=title;const p=document.createElement('p');p.textContent=desc;emptyEl.append(icon,h,p);root.append(emptyEl); }
 // 공개 구독 목록은 각 요청에서 최대 50개를 받습니다.
@@ -207,7 +208,7 @@ async function fetchPage(reset) {
 }
 async function search(raw) { if (state.busy) return; if (tooSoon('lookup:'+String(raw).trim(), 8000)) {toast('같은 채널을 방금 조회했습니다. 잠시 후 다시 시도해 주세요.');return;} if (!setting('API_KEY')) { toast('사이트 인증 설정이 누락되었습니다. 운영자에게 문의해 주세요.','error');return; }
   setBusy(true);empty('채널을 확인하는 중입니다…','유튜브 정보를 확인하고 있습니다.');$('resultsSubtitle').textContent='채널 조회 중…';$('sourceBanner').classList.add('hidden');
-  state.viewMine=false;state.items=[];state.nextPage=null;state.source=null;$('syncNote').classList.add('hidden');$('moreWrap').classList.add('hidden');$('filterInput').disabled=true;$('sortSelect').disabled=true;
+  resetPlaylists();state.viewMine=false;state.items=[];state.nextPage=null;state.source=null;$('syncNote').classList.add('hidden');$('moreWrap').classList.add('hidden');$('filterInput').disabled=true;$('sortSelect').disabled=true;
   try { state.source=await resolveChannel(raw); }catch(err){empty('채널을 찾을 수 없습니다',errorString(err));$('resultsSubtitle').textContent='채널 조회 실패';toast(errorString(err),'error');}finally{setBusy(false);}
   if (state.source) {
     $('ownerVerifyBtn').disabled=false;
@@ -458,7 +459,7 @@ $('closeBulkSubscribeBtn').addEventListener('click',()=>{if(!state.bulk.running)
 $('bulkSubscribeDialog').addEventListener('cancel',event=>{if(state.bulk.running)event.preventDefault();});
 $('bulkSubscribeDialog').addEventListener('click',event=>{if(event.target===event.currentTarget&&!state.bulk.running)event.currentTarget.close();});
 
-function exportCsv(){if(!state.items.length)return;const csvCell=x=>'"'+String(x??'').replace(/"/g,'""')+'"';const rows=[['채널명','채널 ID','채널 URL','설명','구독 공개 데이터 날짜'],...state.items.map(x=>[x.title,x.id,'https://www.youtube.com/channel/'+x.id,x.description,x.publishedAt])];const blob=new Blob(['\ufeff'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='SubBridge_'+(state.source?.id||'subscriptions')+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
+function exportCsv(){if(!state.items.length)return;const csvCell=x=>'"'+String(x??'').replace(/"/g,'""')+'"';const rows=[['채널명','채널 ID','채널 URL','설명','구독 공개 데이터 날짜'],...state.items.map(x=>[x.title,x.id,'https://www.youtube.com/channel/'+x.id,x.description,x.publishedAt])];const blob=new Blob(['﻿'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='SubBridge_'+(state.source?.id||'subscriptions')+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
 
 // 브라우저 / 운영체제에서 설정한 링크 처리 규칙에 맡깁니다.
 // YouTube PWA가 설치되어 있는 경우 Chrome이 앱으로 라우팅할 수 있습니다.
@@ -491,6 +492,97 @@ $('switchAccountBtn').addEventListener('click',async()=>{
   catch(err){ toast(errorString(err),'error'); }
 });
 $('guideBtn').addEventListener('click',()=>openHelpDialog('guideDialog'));$('guideOkayBtn').addEventListener('click',()=>$('guideDialog').close());$('closeGuideBtn').addEventListener('click',()=>$('guideDialog').close());
+
+// Public playlists: an intentionally separate, on-demand read to conserve YouTube quota.
+function resetPlaylists(){
+  playlistState.requestId++;
+  playlistState.channelId=null;playlistState.items=[];playlistState.loading=false;
+  $('playlistFilterInput').value='';$('playlistFilterInput').disabled=true;
+  $('playlistSubtitle').textContent='위에서 채널을 조회한 후 공개 재생목록을 불러올 수 있습니다.';
+  $('loadPlaylistsBtn').disabled=true;$('loadPlaylistsBtn').textContent='↻ 재생목록 불러오기';
+  $('exportPlaylistsBtn').disabled=true;
+  renderPlaylists();
+}
+function playlistEmpty(title,description){
+  const root=$('playlistGrid');root.replaceChildren();const el=document.createElement('div');el.className='empty';
+  const ico=document.createElement('div');ico.className='empty-icon';ico.textContent='▤';
+  const h=document.createElement('h3');h.textContent=title;
+  const p=document.createElement('p');p.textContent=description;
+  el.append(ico,h,p);root.append(el);
+}
+function renderPlaylists(){
+  const query=normalizeSearch($('playlistFilterInput').value);
+  const matching=playlistState.items.filter(item=>normalizeSearch(item.title).includes(query));
+  $('playlistCount').textContent=matching.length.toLocaleString('ko-KR')+'개 표시';
+  if(!matching.length){playlistEmpty(playlistState.items.length?'검색 결과가 없습니다':'아직 불러온 재생목록이 없습니다',playlistState.items.length?'다른 제목으로 검색해 주세요.':'채널을 조회한 뒤 재생목록 불러오기를 눌러주세요.');return;}
+  const fragment=document.createDocumentFragment();
+  for(const item of matching){
+    const card=document.createElement('article');card.className='playlist-card';
+    const cover=document.createElement('div');cover.className='playlist-cover';
+    if(item.image){const img=document.createElement('img');img.src=item.image;img.alt='';img.loading='lazy';img.referrerPolicy='no-referrer';cover.append(img);}
+    else cover.textContent='▶';
+    const body=document.createElement('div');body.className='playlist-body';
+    const title=document.createElement('h3');title.textContent=item.title;title.title=item.title;
+    const desc=document.createElement('p');desc.textContent=item.description || '공개 재생목록';
+    const meta=document.createElement('span');meta.className='playlist-meta';meta.textContent=(item.count??0).toLocaleString('ko-KR')+'개 동영상';
+    const action=document.createElement('a');action.className='primary playlist-open';action.href='https://www.youtube.com/playlist?list='+encodeURIComponent(item.id);action.target='_blank';action.rel='noopener noreferrer';action.textContent='유튜브에서 저장 ↗';action.title='유튜브에서 재생목록을 열고 저장 버튼을 누르세요';
+    body.append(title,desc,meta,action);card.append(cover,body);fragment.append(card);
+  }
+  $('playlistGrid').replaceChildren(fragment);
+}
+async function loadPublicPlaylists(){
+  if(!state.source || playlistState.loading || state.busy){if(!state.source)toast('먼저 유튜브 채널을 조회해 주세요.');return;}
+  const sourceId=state.source.id,requestId=++playlistState.requestId;
+  playlistState.loading=true;playlistState.channelId=sourceId;
+  $('loadPlaylistsBtn').disabled=true;$('loadPlaylistsBtn').textContent='불러오는 중…';
+  $('playlistSubtitle').textContent='공개 재생목록을 조회하는 중…';
+  const items=[];const ids=new Set();const tokens=new Set();let cursor=null,pages=0,success=false;
+  try{
+    do{
+      if(cursor && tokens.has(cursor))throw new Error('재생목록 페이지가 반복되었습니다.');
+      if(cursor)tokens.add(cursor);
+      const result=await youtube('playlists',{part:'snippet,contentDetails,status',channelId:sourceId,maxResults:50,pageToken:cursor||undefined});
+      if(requestId!==playlistState.requestId || state.source?.id!==sourceId)return;
+      for(const pl of result.items||[]){
+        if(!pl.id || ids.has(pl.id) || pl.status?.privacyStatus && pl.status.privacyStatus!=='public')continue;
+        ids.add(pl.id);items.push({id:pl.id,title:pl.snippet?.title||'제목 없는 재생목록',description:pl.snippet?.description||'',image:avatarOf(pl.snippet),count:pl.contentDetails?.itemCount});
+      }
+      pages++;cursor=result.nextPageToken||null;
+      $('playlistSubtitle').textContent=`${items.length.toLocaleString('ko-KR')}개 불러오는 중 · ${pages}페이지`;
+      if(cursor)await new Promise(r=>setTimeout(r,0));
+    }while(cursor);
+    success=true;
+    playlistState.items=items;
+    $('playlistFilterInput').disabled=false;$('exportPlaylistsBtn').disabled=!items.length;
+    $('playlistSubtitle').textContent=`공개 재생목록 ${items.length.toLocaleString('ko-KR')}개 조회 완료 · ${pages}페이지`;
+    renderPlaylists();
+    if(!items.length)playlistEmpty('공개 재생목록이 없습니다','채널의 재생목록이 없거나 공개로 설정되지 않았습니다.');
+  }catch(err){
+    if(requestId!==playlistState.requestId)return;
+    $('playlistSubtitle').textContent=`조회 중 오류 발생 · ${pages}페이지 확인`;
+    toast('재생목록 조회 실패: '+errorString(err),'error');
+    // Incomplete lists must never be represented as complete.
+    playlistEmpty('재생목록을 불러오지 못했습니다',errorString(err));
+  }finally{
+    if(requestId===playlistState.requestId){playlistState.loading=false;$('loadPlaylistsBtn').disabled=false;$('loadPlaylistsBtn').textContent=success?'↻ 재생목록 새로고침':'↻ 재생목록 불러오기';}
+  }
+}
+$('loadPlaylistsBtn').addEventListener('click',loadPublicPlaylists);
+$('playlistFilterInput').addEventListener('input',renderPlaylists);
+$('exportPlaylistsBtn').addEventListener('click',()=>{
+  if(!playlistState.items.length)return;
+  const quote=v=>'"'+String(v??'').replaceAll('"','""')+'"';
+  const lines=[['재생목록 제목','재생목록 URL','동영상 수','설명'],...playlistState.items.map(x=>[x.title,'https://www.youtube.com/playlist?list='+x.id,x.count,x.description])];
+  const blob=new Blob(['﻿'+lines.map(line=>line.map(quote).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='SubBridge_playlists.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
+});
+// Sync the button only after a source has been established; avoids background API calls.
+const playlistSourceObserver=new MutationObserver(()=>{const id=state.source?.id||null;if(id!==playlistState.channelId){
+  if(playlistState.channelId!==null)resetPlaylists();
+  $('loadPlaylistsBtn').disabled=!id;
+}});
+playlistSourceObserver.observe($('sourceBanner'),{attributes:true,attributeFilter:['class']});
+
 $('searchForm').addEventListener('submit',event=>{
   event.preventDefault();
   // iOS Safari magnifies focused inputs under 16px. Remove keyboard focus before loading.
@@ -515,7 +607,7 @@ $('mySubsBtn').addEventListener('click', async()=>{
     const own=data.items?.[0];
     if(!own)throw new Error('연결된 Google 계정에서 YouTube 채널을 찾지 못했습니다.');
     if((data.items||[]).length>1)toast('여러 YouTube 채널이 있습니다. 로그인 시 선택된 채널 기준으로 표시됩니다.');
-    state.viewMine=true;state.source=own;state.items=[];state.nextPage=null;
+    resetPlaylists();state.viewMine=true;state.source=own;state.items=[];state.nextPage=null;
     $('filterInput').disabled=false;$('sortSelect').disabled=false;
     $('sourceBanner').classList.remove('hidden');
     await fetchPage(true);

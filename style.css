@@ -397,3 +397,19 @@ body{min-height:100vh;min-height:100dvh}
 @media(max-width:600px){.bulk-subscribe-modal .modal-inner{padding:18px}.bulk-stats{font-size:12px}.bulk-actions button{flex:1}}
 
 .legal-links{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:22px 10px 34px;font-size:12px;opacity:.85}.legal-links a{color:var(--muted, #667085);text-decoration:none}.legal-links a:hover{text-decoration:underline}.legal-links span{color:var(--muted, #667085)}
+
+/* Public playlists panel */
+.playlist-workspace{margin-top:22px}
+.playlist-hint{font-size:12px;line-height:1.65;color:var(--muted);margin:3px 0 18px;padding:11px 14px;border:1px solid var(--border);border-radius:12px;background:var(--input-bg,transparent)}
+.playlist-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.playlist-card{min-width:0;overflow:hidden;border:1px solid var(--border);border-radius:15px;background:var(--card,transparent);display:flex;flex-direction:column;transition:transform .2s ease,box-shadow .2s ease}
+.playlist-card:hover{transform:translateY(-3px);box-shadow:0 12px 27px rgba(20,30,48,.09)}
+.playlist-cover{height:126px;background:linear-gradient(135deg,#2c465f,#25334c);color:white;display:grid;place-items:center;font-size:30px;overflow:hidden}
+.playlist-cover img{width:100%;height:100%;object-fit:cover}
+.playlist-body{display:flex;flex:1;flex-direction:column;align-items:stretch;padding:13px;gap:7px;min-width:0}
+.playlist-body h3{margin:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.playlist-body p{margin:0;color:var(--muted);font-size:11px;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:32px}
+.playlist-meta{color:var(--muted);font-size:11px}
+.playlist-open{display:block;text-align:center;text-decoration:none;margin-top:auto;padding:10px 8px;font-size:12px;border-radius:9px}
+@media(max-width:760px){.playlist-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.playlist-workspace{margin-top:14px}.playlist-cover{height:90px}.playlist-body{padding:9px}.playlist-body h3{font-size:12px}.playlist-open{font-size:11px;padding:9px 4px}.playlist-hint{font-size:11px}}
+@media(prefers-reduced-motion:reduce){.playlist-card{transition:none}.playlist-card:hover{transform:none}}
