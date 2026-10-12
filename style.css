@@ -434,3 +434,39 @@ body{min-height:100vh;min-height:100dvh}
 .list-clamp:not(.is-collapsed){max-height:none;overflow:visible}
 @media(max-width:760px){.list-display-actions{justify-content:space-between;gap:8px}.list-scroll-hint{flex:1;text-align:right;font-size:10px}.list-clamp.is-collapsed{padding-right:3px;scrollbar-gutter:auto}}
 @media(prefers-reduced-motion:reduce){.list-toggle .toggle-arrow{transition:none}}
+
+/* Compact public playlist cards: keep actions available while fitting three rows. */
+.playlist-grid{gap:9px!important}
+.playlist-card{border-radius:11px!important}
+.playlist-cover{height:72px!important}
+.playlist-body{padding:8px 9px!important;gap:4px!important}
+.playlist-body h3{font-size:12px!important;line-height:1.3!important}
+.playlist-body p{font-size:10px!important;min-height:0!important;line-height:1.3!important;-webkit-line-clamp:1!important}
+.playlist-meta{font-size:10px!important;line-height:1.25!important}
+.playlist-open,.playlist-copy-btn{min-height:27px!important;padding:5px 4px!important;font-size:10px!important;line-height:1.3!important;border-radius:7px!important}
+.playlist-copy-btn{margin-top:2px!important}
+/* Five channel action buttons remain on one visible row (no second line). */
+#workspace .results-actions{display:flex!important;flex-wrap:nowrap!important;gap:5px!important;width:100%;min-width:0;overflow:visible!important;padding:0!important}
+#workspace .results-actions>button{flex:0 1 auto!important;width:auto!important;min-width:0!important;min-height:32px!important;padding:0 8px!important;font-size:11px!important;white-space:nowrap!important;letter-spacing:-.35px!important}
+/* The URL field is a full row on narrow screens, then paste / clear / submit. */
+.search-form .paste-input{min-height:38px;padding:0 12px;white-space:nowrap}
+.back-to-top{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom));width:45px;height:45px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border,#d4ddea);background:var(--panel,#fff);color:var(--text,#26364e);border-radius:14px;box-shadow:0 8px 30px #0002;z-index:90;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(12px);transition:opacity .2s,transform .2s,visibility .2s}
+.back-to-top.is-visible{opacity:1;visibility:visible;pointer-events:auto;transform:none}
+.back-to-top:hover{border-color:var(--red,#ff5b60)}
+@media(max-width:760px){
+  .playlist-cover{height:58px!important}
+  .playlist-body{padding:7px!important;gap:3px!important}
+  .playlist-body h3{font-size:11px!important}
+  .playlist-body p{font-size:9px!important}
+  .playlist-open,.playlist-copy-btn{font-size:9px!important;min-height:26px!important}
+  #workspace .results-actions{gap:3px!important;justify-content:space-between!important}
+  #workspace .results-actions>button{font-size:clamp(8px,2.25vw,10px)!important;padding:0 3px!important;min-height:30px!important;letter-spacing:-.6px!important}
+  .search-form{grid-template-columns:auto auto minmax(0,1fr)!important}
+  .search-form .input-wrap{grid-column:1/-1!important}
+  .search-form .paste-input{grid-column:1!important;padding:0 10px!important;font-size:12px!important}
+  .search-form .clear-input{grid-column:2!important;padding:0 10px!important;width:auto!important}
+  .search-form .search-submit{grid-column:3!important;padding:0 9px!important;font-size:clamp(10px,2.9vw,12px)!important}
+  .back-to-top{right:14px;bottom:calc(16px + env(safe-area-inset-bottom));width:42px;height:42px}
+}
+@media(max-width:360px){#workspace .results-actions>button{font-size:7.5px!important;padding:0 2px!important;letter-spacing:-.7px!important}}
+@media(prefers-reduced-motion:reduce){.back-to-top{transition:none}}

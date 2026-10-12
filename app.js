@@ -483,6 +483,28 @@ function openYoutubeSubscription(channelId){
 }
 
 $('clearInputBtn').addEventListener('click',()=>{$('channelInput').value='';$('channelInput').focus();});
+// Clipboard API requires HTTPS and may request browser permission.
+$('pasteInputBtn').addEventListener('click',async()=>{
+  const input=$('channelInput');
+  try{
+    if(!navigator.clipboard?.readText)throw new Error('clipboard unavailable');
+    const value=await navigator.clipboard.readText();
+    if(!value.trim()){toast('클립보드에 붙여넣을 내용이 없습니다.');input.focus();return;}
+    input.value=value.trim();input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();
+  }catch(err){
+    input.focus();toast('브라우저에서 클립보드 읽기가 차단되었습니다. 검색창에서 Ctrl+V 또는 붙여넣기를 이용해 주세요.','error');
+  }
+});
+// Auto-focus on first visit and after refresh, without scrolling the page.
+window.addEventListener('load',()=>{
+  if(!document.querySelector('dialog[open]')) $('channelInput').focus({preventScroll:true});
+},{once:true});
+const backToTopBtn=$('backToTopBtn');
+function syncBackToTop(){backToTopBtn.classList.toggle('is-visible',window.scrollY>280)}
+window.addEventListener('scroll',syncBackToTop,{passive:true});
+window.addEventListener('pageshow',syncBackToTop);
+backToTopBtn.addEventListener('click',()=>window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'}));
+syncBackToTop();
 $('authHelpBtn').addEventListener('click',()=>openHelpDialog('authHelpDialog'));
 $('closeAuthHelpBtn').addEventListener('click',()=>$('authHelpDialog').close());
 $('authHelpOkayBtn').addEventListener('click',()=>$('authHelpDialog').close());
