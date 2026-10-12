@@ -62,7 +62,7 @@ function errorString(err) {
     userRateLimitExceeded:'사용자별 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도해 주세요.',
     accessNotConfigured:'이 프로젝트에서 YouTube Data API v3가 활성화되어 있는지 확인해 주세요.',
     API_KEY_INVALID:'API 키 설정을 확인해 주세요.', keyInvalid:'API 키 설정을 확인해 주세요.',
-    subscriptionForbidden:'YouTube에서 해당 구독 작업을 허용하지 않았습니다. 계정 및 구독 상태를 확인해 주세요.',
+    subscriptionForbidden:'이 채널의 구독 목록은 YouTube 공개 API에서 조회가 거부되었습니다. 구독 공개 설정을 확인해 주세요. 공개 재생목록은 별도로 조회할 수 있습니다.',
     subscriptionDuplicate:'이미 구독 중인 채널입니다.',
     authenticatedUserAccountClosed:'이 계정에서는 YouTube를 사용할 수 없습니다.',
     insufficientPermissions:'YouTube 구독 권한이 승인되지 않았습니다.',
@@ -193,7 +193,7 @@ async function fetchPage(reset) {
     if (!state.items.length) empty('구독 채널이 없습니다',state.viewMine?'이 계정에서 조회할 구독 채널이 없습니다.':'공개 설정된 구독 채널이 없을 수 있습니다.');
   } catch (err) {
     failed = true;
-    const msg = errorString(err);
+    const msg = !useMine && ['subscriptionForbidden','forbidden'].includes(err?.reason) ? '공개 구독 목록 요청이 거부되었습니다. 해당 채널의 공개 구독 설정 또는 API 접근 제한을 확인해 주세요. 공개 재생목록은 아래에서 별도로 불러올 수 있습니다. ('+ (err?.reason||'') +')' : errorString(err);
     $('resultsSubtitle').textContent = `${state.items.length.toLocaleString('ko-KR')}개까지 불러옴 · 조회 중단`;
     toast('목록을 끝까지 불러오지 못했습니다: ' + msg, 'error');
     if (!state.items.length) empty('구독 목록 조회 실패', msg);
@@ -212,10 +212,9 @@ async function search(raw) { if (state.busy) return; if (tooSoon('lookup:'+Strin
   try { state.source=await resolveChannel(raw); }catch(err){empty('채널을 찾을 수 없습니다',errorString(err));$('resultsSubtitle').textContent='채널 조회 실패';toast(errorString(err),'error');}finally{setBusy(false);}
   if (state.source) {
     $('ownerVerifyBtn').disabled=false;
-    if (state.token && Date.now() < state.expires) {
-      try { await preferAuthenticatedOwnSource(); }
-      catch (e) { console.warn('소유자 일치 여부 확인 실패:',errorString(e)); }
-    }
+    // URL 검색은 로그인 상태와 무관하게 항상 해당 채널의 공개 데이터로 조회합니다.
+    // 내 구독 목록/소유자 인증은 전용 버튼을 눌렀을 때만 사용합니다.
+    state.viewMine = false;
     await fetchPage(true);
     updateSourceModeHint();
   }
@@ -498,7 +497,7 @@ function resetPlaylists(){
   playlistState.requestId++;
   playlistState.channelId=null;playlistState.items=[];playlistState.loading=false;
   $('playlistFilterInput').value='';$('playlistFilterInput').disabled=true;
-  $('playlistSubtitle').textContent='위에서 채널을 조회한 후 공개 재생목록을 불러올 수 있습니다.';
+  $('playlistSubtitle').textContent='채널 URL을 입력하면 로그인 없이 공개 재생목록을 조회할 수 있습니다.';
   $('loadPlaylistsBtn').disabled=true;$('loadPlaylistsBtn').textContent='↻ 재생목록 불러오기';
   $('exportPlaylistsBtn').disabled=true;
   renderPlaylists();
@@ -535,13 +534,13 @@ async function loadPublicPlaylists(){
   const sourceId=state.source.id,requestId=++playlistState.requestId;
   playlistState.loading=true;playlistState.channelId=sourceId;
   $('loadPlaylistsBtn').disabled=true;$('loadPlaylistsBtn').textContent='불러오는 중…';
-  $('playlistSubtitle').textContent='공개 재생목록을 조회하는 중…';
+  $('playlistSubtitle').textContent='로그인 없이 공개 재생목록을 조회하는 중…';
   const items=[];const ids=new Set();const tokens=new Set();let cursor=null,pages=0,success=false;
   try{
     do{
       if(cursor && tokens.has(cursor))throw new Error('재생목록 페이지가 반복되었습니다.');
       if(cursor)tokens.add(cursor);
-      const result=await youtube('playlists',{part:'snippet,contentDetails,status',channelId:sourceId,maxResults:50,pageToken:cursor||undefined});
+      const result=await youtube('playlists',{part:'snippet,contentDetails',channelId:sourceId,maxResults:50,pageToken:cursor||undefined});
       if(requestId!==playlistState.requestId || state.source?.id!==sourceId)return;
       for(const pl of result.items||[]){
         if(!pl.id || ids.has(pl.id) || pl.status?.privacyStatus && pl.status.privacyStatus!=='public')continue;
@@ -666,12 +665,7 @@ async function refreshLatestSubscriptions() {
   if (state.busy || !state.source) return;
   if (tooSoon('refresh:'+state.source.id, 10000)) {toast('불필요한 API 호출을 줄이기 위해 10초 내 중복 새로고침은 제한됩니다.');return;}
   const sourceId = state.source.id;
-  // 이미 인증되어 있다면 동일한 본인 채널은 자동으로 mine=true 조회로 전환.
-  // 인증 실패는 조용히 공개 조회로 대체하지 않고 화면에 명확히 알림.
-  if (!state.viewMine && state.token && Date.now() < state.expires) {
-    try { await preferAuthenticatedOwnSource(); }
-    catch (error) { toast('본인 채널 확인 실패: ' + errorString(error) + ' · 공개 목록으로 조회합니다.', 'error'); }
-  }
+  // 공개 조회는 OAuth 연결 여부와 독립적입니다. 소유자 인증 버튼만 mine=true를 설정합니다.
   const mine = state.viewMine;
   updateSourceModeHint();
   if (mine && (!state.token || Date.now() >= state.expires)) {
