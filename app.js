@@ -215,8 +215,18 @@ async function search(raw) { if (state.busy) return; if (tooSoon('lookup:'+Strin
     // URL 검색은 로그인 상태와 무관하게 항상 해당 채널의 공개 데이터로 조회합니다.
     // 내 구독 목록/소유자 인증은 전용 버튼을 눌렀을 때만 사용합니다.
     state.viewMine = false;
-    await fetchPage(true);
-    updateSourceModeHint();
+    // Public subscription and public playlist requests are independent.
+    // fetchPage reports subscription failures without throwing; regardless of its result,
+    // loadPublicPlaylists separately so publicly available playlists remain accessible.
+    const requestedChannelId = state.source.id;
+    try {
+      await fetchPage(true);
+    } finally {
+      if (state.source?.id === requestedChannelId) {
+        updateSourceModeHint();
+        await loadPublicPlaylists();
+      }
+    }
   }
 }
 // Search only channel names and Korean initial consonants, ignoring spaces, punctuation and case.
