@@ -366,8 +366,9 @@ async function unsubscribe(channel, button){
   }catch(err){button.disabled=false;button.textContent='구독 취소';toast('구독 취소 실패: '+errorString(err),'error');}
 }
 // Bulk subscriptions are initiated only after explicit per-operation consent.
-// To conserve quota, scan existing subscriptions once, then send sequential writes.
-const BULK_DELAY_MS=950;
+// To conserve quota, scan existing subscriptions once; run a small bounded worker pool.
+const BULK_CONCURRENCY=3;
+const BULK_LAUNCH_GAP_MS=160;
 const bulkSleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const validChannelId=id=>/^UC[\w-]{22}$/.test(id);
 function bulkEligible(){return [...new Map(state.items.filter(x=>validChannelId(x.id)).map(x=>[x.id,x])).values()];}
@@ -419,31 +420,43 @@ async function executeBulk(){
     state.subscribed=new Set(existing);
     render();
     bulkProgress(0,targets.length,0,0,0,'기존 구독을 확인했습니다.');
-    for (const channel of targets){
-      if(state.bulk.cancel){reason='사용자가 중단했습니다.';break;}
-      if(existing.has(channel.id)){
-        skipped++;done++;bulkProgress(done,targets.length,success,skipped,failed);continue;
-      }
-      try{
-        const result=await youtube('subscriptions',{part:'snippet'},{auth:true,method:'POST',body:{snippet:{resourceId:{kind:'youtube#channel',channelId:channel.id}}}});
-        if(!result.id)throw new Error('YouTube가 구독 완료 응답을 반환하지 않았습니다.');
-        existing.add(channel.id);state.subscribed.add(channel.id);success++;consecutive=0;
-      }catch(err){
-        if(err.reason==='subscriptionDuplicate'){
-          existing.add(channel.id);state.subscribed.add(channel.id);skipped++;consecutive=0;
-        }else{
-          failed++;consecutive++;
-          const stopReasons=['quotaExceeded','dailyLimitExceeded','rateLimitExceeded','userRateLimitExceeded','subscriptionForbidden','insufficientPermissions','forbidden','PERMISSION_DENIED'];
-          if(stopReasons.includes(err.reason) || err.status===401 || err.status===429 || consecutive>=3){
-            reason='API 제한 또는 인증 오류로 중단: '+errorString(err);done++;bulkProgress(done,targets.length,success,skipped,failed,reason);break;
+    // Filter duplicates before issuing any POST. The worker pool limits parallel writes.
+    const pending=[];
+    for(const channel of targets){
+      if(existing.has(channel.id)){skipped++;done++;}
+      else pending.push(channel);
+    }
+    bulkProgress(done,targets.length,success,skipped,failed,'최대 3개 요청을 동시에 처리합니다.');
+    let nextIndex=0,halt=false,started=0;
+    const stopReasons=['quotaExceeded','dailyLimitExceeded','rateLimitExceeded','userRateLimitExceeded','subscriptionForbidden','insufficientPermissions','forbidden','PERMISSION_DENIED'];
+    async function worker(){
+      while(nextIndex<pending.length && !halt && !state.bulk.cancel){
+        const channel=pending[nextIndex++];
+        // Stagger the initial launches instead of sending every request at the same moment.
+        if(started++ < BULK_CONCURRENCY-1)await bulkSleep(BULK_LAUNCH_GAP_MS);
+        if(halt || state.bulk.cancel)break;
+        try{
+          const result=await youtube('subscriptions',{part:'snippet'},{auth:true,method:'POST',body:{snippet:{resourceId:{kind:'youtube#channel',channelId:channel.id}}}});
+          if(!result.id)throw new Error('YouTube가 구독 완료 응답을 반환하지 않았습니다.');
+          existing.add(channel.id);state.subscribed.add(channel.id);success++;consecutive=0;
+        }catch(err){
+          if(err.reason==='subscriptionDuplicate'){
+            existing.add(channel.id);state.subscribed.add(channel.id);skipped++;consecutive=0;
+          }else{
+            failed++;consecutive++;
+            if(stopReasons.includes(err.reason) || err.status===401 || err.status===429 || consecutive>=3){
+              halt=true;
+              reason='API 제한 또는 인증 오류로 중단: '+errorString(err);
+            }
           }
         }
+        done++;
+        bulkProgress(done,targets.length,success,skipped,failed,reason);
+        if(done%5===0)render();
       }
-      done++;bulkProgress(done,targets.length,success,skipped,failed);
-      if(done%5===0)render();
-      // Cancellable delay avoids bursts and is not retried on rate/quota denial.
-      if(done<targets.length){for(let i=0;i<5&&!state.bulk.cancel;i++)await bulkSleep(BULK_DELAY_MS/5);}
     }
+    await Promise.all(Array.from({length:Math.min(BULK_CONCURRENCY,pending.length)},()=>worker()));
+    if(state.bulk.cancel)reason='사용자가 중단했습니다. 이미 전송된 요청은 완료될 수 있습니다.';
     render();
     bulkProgress(done,targets.length,success,skipped,failed,reason || '작업이 종료되었습니다.');
     toast(`모두 구독 결과: 성공 ${success}개 · 기존 구독 ${skipped}개 · 실패 ${failed}개`+(reason?' · 중단됨':''),reason?'error':'success');

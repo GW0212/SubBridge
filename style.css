@@ -470,3 +470,19 @@ body{min-height:100vh;min-height:100dvh}
 }
 @media(max-width:360px){#workspace .results-actions>button{font-size:7.5px!important;padding:0 2px!important;letter-spacing:-.7px!important}}
 @media(prefers-reduced-motion:reduce){.back-to-top{transition:none}}
+
+/* Subscription header layout: a single-line title and right-aligned controls. */
+#workspace .results-top{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important;flex-wrap:nowrap!important}
+#workspace .result-title{flex:0 0 auto;min-width:0;white-space:nowrap}
+#workspace .results-title-line{display:flex;align-items:center;gap:6px;white-space:nowrap}
+#workspace #resultsTitle{white-space:nowrap!important;word-break:keep-all!important;line-height:1.3;font-size:clamp(14px,1.45vw,18px)}
+#workspace .results-actions{margin-left:auto!important;width:auto!important;flex:0 1 auto!important;justify-content:flex-end!important;min-width:0;gap:5px!important}
+#workspace .results-actions>button{flex:0 0 auto!important}
+@media(max-width:1050px){
+  #workspace .results-top{flex-wrap:wrap!important;row-gap:10px!important}
+  #workspace .results-actions{width:100%!important;margin-left:auto!important;justify-content:flex-end!important;overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:thin;max-width:100%!important}
+}
+@media(max-width:600px){
+  #workspace .results-actions{justify-content:flex-end!important;gap:3px!important}
+  #workspace #resultsTitle{font-size:15px!important}
+}
