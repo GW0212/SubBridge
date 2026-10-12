@@ -875,3 +875,57 @@ for (const dialogId of ['authHelpDialog', 'guideDialog']) {
   updateHint();
   mobileQuery.addEventListener?.('change', updateHint);
 })();
+
+
+// Independent, initially collapsed list previews. Precisely fit three rendered
+// CSS-grid rows (three cards/row on desktop, two cards/row on mobile).
+(() => {
+  function setupList(gridId,toggleId){
+    const grid=document.getElementById(gridId);
+    const toggle=document.getElementById(toggleId);
+    if(!grid||!toggle)return;
+    let expanded=false;
+    function updateHeight(){
+      if(expanded)return;
+      // Remove a stale size limit before measuring card positions after filtering
+      // or a breakpoint transition. Cards are stretched to equal row heights.
+      grid.style.removeProperty('--list-three-row-height');
+      const cards=Array.from(grid.children).filter(el=>el.matches('.channel-card,.playlist-card'));
+      if(!cards.length)return;
+      const gridTop=grid.getBoundingClientRect().top;
+      const rows=[];
+      for(const card of cards){
+        const rect=card.getBoundingClientRect();
+        if(!rows.length||Math.abs(rows[rows.length-1].top-rect.top)>2){
+          rows.push({top:rect.top,bottom:rect.bottom});
+        }else{
+          rows[rows.length-1].bottom=Math.max(rows[rows.length-1].bottom,rect.bottom);
+        }
+        if(rows.length>3)break;
+      }
+      if(rows.length>=3){
+        // The last visible row fits entirely, including its border.
+        grid.style.setProperty('--list-three-row-height',Math.ceil(rows[2].bottom-gridTop+1)+'px');
+      }else{
+        grid.style.setProperty('--list-three-row-height',Math.ceil(grid.scrollHeight+1)+'px');
+      }
+    }
+    function setExpanded(value){
+      expanded=value;
+      grid.classList.toggle('is-collapsed',!value);
+      toggle.setAttribute('aria-expanded',String(value));
+      toggle.querySelector('.toggle-label').textContent=value?'접기':'펼치기';
+      if(!value){grid.scrollTop=0;requestAnimationFrame(updateHeight);}
+      else grid.style.removeProperty('--list-three-row-height');
+    }
+    toggle.addEventListener('click',()=>setExpanded(!expanded));
+    const observer=new MutationObserver(()=>requestAnimationFrame(updateHeight));
+    observer.observe(grid,{childList:true});
+    window.addEventListener('resize',()=>requestAnimationFrame(updateHeight),{passive:true});
+    // Responsive fonts/layout may change dimensions without a window resize.
+    if(document.fonts?.ready)document.fonts.ready.then(()=>requestAnimationFrame(updateHeight));
+    setExpanded(false);
+  }
+  setupList('channelGrid','channelListToggle');
+  setupList('playlistGrid','playlistListToggle');
+})();

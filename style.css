@@ -419,3 +419,18 @@ body{min-height:100vh;min-height:100dvh}
 .playlist-copy-dialog .modal-inner{max-width:510px}
 .playlist-copy-result{display:inline-block;margin-top:8px;color:var(--accent,#e85a70);font-weight:700;text-decoration:underline}
 @media(max-width:600px){.playlist-copy-btn{font-size:11px;padding:8px 5px}.playlist-copy-dialog .modal-inner{max-width:calc(100vw - 30px)}}
+
+
+/* 3-row scrollable list previews (subscription channels / public playlists). */
+.list-display-actions{display:flex;align-items:center;gap:12px;justify-content:flex-end;margin:10px 0 12px;flex-wrap:wrap}
+.list-display-actions .list-toggle{min-width:110px;gap:8px}
+.list-toggle .toggle-arrow{display:inline-block;transition:transform .2s ease;font-size:14px}
+.list-toggle[aria-expanded="true"] .toggle-arrow{transform:rotate(180deg)}
+.list-scroll-hint{font-size:11px;color:var(--muted);line-height:1.5}
+.list-clamp{min-height:0}
+.list-clamp.is-collapsed{max-height:var(--list-three-row-height,520px);overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;scrollbar-gutter:stable;align-content:start;padding-right:4px}
+.list-clamp.is-collapsed::-webkit-scrollbar{width:7px}
+.list-clamp.is-collapsed::-webkit-scrollbar-thumb{background:#71839878;border-radius:10px}
+.list-clamp:not(.is-collapsed){max-height:none;overflow:visible}
+@media(max-width:760px){.list-display-actions{justify-content:space-between;gap:8px}.list-scroll-hint{flex:1;text-align:right;font-size:10px}.list-clamp.is-collapsed{padding-right:3px;scrollbar-gutter:auto}}
+@media(prefers-reduced-motion:reduce){.list-toggle .toggle-arrow{transition:none}}
