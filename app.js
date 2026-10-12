@@ -535,7 +535,8 @@ function renderPlaylists(){
     const desc=document.createElement('p');desc.textContent=item.description || '공개 재생목록';
     const meta=document.createElement('span');meta.className='playlist-meta';meta.textContent=(item.count??0).toLocaleString('ko-KR')+'개 동영상';
     const action=document.createElement('a');action.className='primary playlist-open';action.href='https://www.youtube.com/playlist?list='+encodeURIComponent(item.id);action.target='_blank';action.rel='noopener noreferrer';action.textContent='유튜브에서 저장 ↗';action.title='유튜브에서 재생목록을 열고 저장 버튼을 누르세요';
-    body.append(title,desc,meta,action);card.append(cover,body);fragment.append(card);
+    const copy=document.createElement('button');copy.type='button';copy.className='ghost playlist-copy-btn';copy.textContent='내 재생목록으로 복사';copy.addEventListener('click',()=>openPlaylistCopy(item));
+    body.append(title,desc,meta,action,copy);card.append(cover,body);fragment.append(card);
   }
   $('playlistGrid').replaceChildren(fragment);
 }
@@ -576,6 +577,93 @@ async function loadPublicPlaylists(){
     if(requestId===playlistState.requestId){playlistState.loading=false;$('loadPlaylistsBtn').disabled=false;$('loadPlaylistsBtn').textContent=success?'↻ 재생목록 새로고침':'↻ 재생목록 불러오기';}
   }
 }
+// Playlist copy works only with user-initiated OAuth permission and official API writes.
+const playlistCopy = {running:false,stop:false,source:null,destination:null};
+const copyDialog=$('playlistCopyDialog');
+function copyProgress(text,done,total){
+  $('playlistCopyProgress').classList.remove('hidden');
+  $('playlistCopyProgressText').textContent=text;
+  $('playlistCopyProgressFill').style.width=(total?Math.round(done/total*100):0)+'%';
+}
+function openPlaylistCopy(item){
+  if(playlistCopy.running){toast('진행 중인 재생목록 복사가 끝난 뒤 다시 시도해 주세요.');return;}
+  playlistCopy.source=item;playlistCopy.stop=false;playlistCopy.destination=null;
+  $('playlistCopyDescription').textContent='원본: '+item.title;
+  $('playlistCopyTotal').textContent=Number(item.count||0).toLocaleString('ko-KR');
+  $('playlistCopyQuota').textContent=(50+Number(item.count||0)*50+Math.ceil(Number(item.count||0)/50)+1).toLocaleString('ko-KR');
+  $('playlistCopyConsent').checked=false;$('playlistCopyStart').disabled=true;$('playlistCopyStart').textContent='복사 시작';
+  $('playlistCopyProgress').classList.add('hidden');$('playlistCopyResult').classList.add('hidden');
+  $('playlistCopyCancel').textContent='닫기';$('closePlaylistCopyBtn').disabled=false;
+  openHelpDialog('playlistCopyDialog');
+}
+$('playlistCopyConsent').addEventListener('change',()=>{$('playlistCopyStart').disabled=playlistCopy.running||!$('playlistCopyConsent').checked;});
+function closeCopyDialog(){if(playlistCopy.running){playlistCopy.stop=true;copyProgress('현재 요청이 완료되면 중단합니다.',0,1);return;}copyDialog.close();}
+$('playlistCopyCancel').addEventListener('click',closeCopyDialog);
+$('closePlaylistCopyBtn').addEventListener('click',closeCopyDialog);
+copyDialog.addEventListener('cancel',event=>{if(playlistCopy.running){event.preventDefault();playlistCopy.stop=true;}});
+copyDialog.addEventListener('click',event=>{if(event.target===copyDialog&&!playlistCopy.running)copyDialog.close();});
+async function playlistVideos(playlistId){
+  let cursor=null;const visited=new Set(),videos=[];
+  do{
+    if(playlistCopy.stop)throw new Error('사용자가 복사를 중단했습니다.');
+    if(cursor&&visited.has(cursor))throw new Error('재생목록 페이지 토큰이 반복되었습니다.');
+    if(cursor)visited.add(cursor);
+    const result=await youtube('playlistItems',{part:'snippet,contentDetails',playlistId,maxResults:50,pageToken:cursor||undefined});
+    for(const item of result.items||[]){
+      const id=item.contentDetails?.videoId||item.snippet?.resourceId?.videoId;
+      if(id&&/^[\w-]{11}$/.test(id)&&item.snippet?.title!=='Deleted video'&&item.snippet?.title!=='Private video')videos.push(id);
+    }
+    cursor=result.nextPageToken||null;
+  }while(cursor);
+  return videos;
+}
+$('playlistCopyStart').addEventListener('click',async()=>{
+  if(playlistCopy.running||!playlistCopy.source||!$('playlistCopyConsent').checked)return;
+  const source=playlistCopy.source;
+  playlistCopy.running=true;playlistCopy.stop=false;
+  $('playlistCopyStart').disabled=true;$('playlistCopyCancel').textContent='중단';$('closePlaylistCopyBtn').disabled=true;
+  let done=0,failed=0,destination=null,total=0;
+  try{
+    if(!state.token||Date.now()>=state.expires){copyProgress('Google 계정 연결을 진행합니다…',0,1);await connect();}
+    if(playlistCopy.stop)throw new Error('사용자가 복사를 중단했습니다.');
+    copyProgress('원본 재생목록의 동영상을 조회하는 중…',0,1);
+    const videos=await playlistVideos(source.id);total=videos.length;
+    if(playlistCopy.stop)throw new Error('사용자가 복사를 중단했습니다.');
+    if(!videos.length)throw new Error('복사 가능한 공개 동영상이 없습니다.');
+    // Playlist creation is explicit and happens only after source retrieval completes.
+    const created=await youtube('playlists',{part:'snippet,status'},{auth:true,method:'POST',body:{snippet:{title:source.title+' (복사본)',description:'SubBridge를 통해 복사한 재생목록. 원본: https://www.youtube.com/playlist?list='+source.id},status:{privacyStatus:'private'}}});
+    destination=created.id;if(!destination)throw new Error('새 재생목록 ID를 확인하지 못했습니다.');
+    playlistCopy.destination=destination;
+    $('playlistCopyResult').href='https://www.youtube.com/playlist?list='+encodeURIComponent(destination);
+    $('playlistCopyResult').classList.remove('hidden');
+    for(let i=0;i<videos.length;i++){
+      if(playlistCopy.stop)break;
+      if(!state.token||Date.now()>=state.expires)throw new Error('인증 만료로 중단했습니다. 계정을 재연결한 뒤 다시 진행해 주세요.');
+      try{
+        await youtube('playlistItems',{part:'snippet'},{auth:true,method:'POST',body:{snippet:{playlistId:destination,resourceId:{kind:'youtube#video',videoId:videos[i]}}}});
+        done++;
+      }catch(err){
+        const reason=String(err?.reason||'');
+        if(['quotaExceeded','dailyLimitExceeded','rateLimitExceeded','userRateLimitExceeded','forbidden','insufficientPermissions'].includes(reason)||err?.status===401)throw err;
+        failed++;
+      }
+      copyProgress(`복사 ${i+1}/${videos.length}개 확인 · 성공 ${done} · 실패 ${failed}`,i+1,videos.length);
+      if(i<videos.length-1)await new Promise(r=>setTimeout(r,300));
+    }
+    const message=playlistCopy.stop?'사용자 요청으로 중단했습니다.':'재생목록 복사가 완료되었습니다.';
+    copyProgress(`${message} 성공 ${done}개 · 건너뜀/실패 ${failed}개`,total,total);
+    toast(message,'success');
+  }catch(err){
+    const message=errorString(err);
+    copyProgress(`${message}${destination?' · 생성된 재생목록은 보존됩니다.':''}`,done,total||1);
+    toast('재생목록 복사 중단: '+message,'error');
+  }finally{
+    playlistCopy.running=false;$('closePlaylistCopyBtn').disabled=false;
+    $('playlistCopyStart').textContent='복사 종료';$('playlistCopyStart').disabled=true;
+    $('playlistCopyCancel').textContent='닫기';
+  }
+});
+
 $('loadPlaylistsBtn').addEventListener('click',loadPublicPlaylists);
 $('playlistFilterInput').addEventListener('input',renderPlaylists);
 $('exportPlaylistsBtn').addEventListener('click',()=>{

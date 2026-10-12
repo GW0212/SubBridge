@@ -413,3 +413,9 @@ body{min-height:100vh;min-height:100dvh}
 .playlist-open{display:block;text-align:center;text-decoration:none;margin-top:auto;padding:10px 8px;font-size:12px;border-radius:9px}
 @media(max-width:760px){.playlist-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.playlist-workspace{margin-top:14px}.playlist-cover{height:90px}.playlist-body{padding:9px}.playlist-body h3{font-size:12px}.playlist-open{font-size:11px;padding:9px 4px}.playlist-hint{font-size:11px}}
 @media(prefers-reduced-motion:reduce){.playlist-card{transition:none}.playlist-card:hover{transform:none}}
+
+/* Playlist copy controls */
+.playlist-copy-btn{display:block;width:100%;margin-top:7px;padding:9px 10px;font-size:12px;border-radius:10px;white-space:normal}
+.playlist-copy-dialog .modal-inner{max-width:510px}
+.playlist-copy-result{display:inline-block;margin-top:8px;color:var(--accent,#e85a70);font-weight:700;text-decoration:underline}
+@media(max-width:600px){.playlist-copy-btn{font-size:11px;padding:8px 5px}.playlist-copy-dialog .modal-inner{max-width:calc(100vw - 30px)}}
