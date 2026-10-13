@@ -494,3 +494,91 @@ body{min-height:100vh;min-height:100dvh}
 .list-display-actions .list-toggle{margin-left:var(--toggle-left,0px)!important;flex:0 0 auto}
 @media(max-width:760px){.playlist-cover{height:83px!important}}
 @media(max-width:420px){.playlist-cover{height:69px!important}}
+
+
+/* 2026-10-13: final alignment, responsive visual polish; functional behavior unchanged. */
+#workspace .list-display-actions,
+#playlistSection .list-display-actions{
+  display:flex!important;justify-content:flex-end!important;align-items:center!important;
+  flex-wrap:nowrap!important;width:100%;margin:12px 0 14px!important;
+}
+#workspace .list-display-actions .list-toggle,
+#playlistSection .list-display-actions .list-toggle{
+  margin:0 0 0 auto!important;min-width:102px;justify-content:center;
+}
+/* Give interactive surfaces a consistent restrained feel. */
+.search-panel,.workspace,.info-box{
+  transition:border-color .22s ease,box-shadow .25s ease,background-color .22s ease;
+}
+@media(hover:hover) and (pointer:fine){
+  .search-panel:hover,.workspace:hover{box-shadow:0 13px 34px rgba(18,30,46,.085)}
+  .channel-card:hover,.playlist-card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(19,29,48,.10)}
+  .list-toggle:hover:not(:disabled){transform:translateY(-1px)}
+  .playlist-card .playlist-open:hover,.playlist-card .playlist-copy-btn:hover:not(:disabled){filter:brightness(1.04)}
+}
+.channel-card,.playlist-card,.list-toggle,.input-wrap,.playlist-open,.playlist-copy-btn{
+  transition:transform .18s ease,border-color .2s ease,box-shadow .2s ease,background-color .2s ease,filter .2s ease;
+}
+button:active:not(:disabled){transform:scale(.985)}
+:where(button,a,input,select):focus-visible{outline:2px solid #e26876;outline-offset:3px}
+/* Preserve the accessible modal close-button focus treatment in existing CSS. */
+.playlist-cover img{max-width:100%;max-height:100%;object-fit:contain!important}
+.list-clamp.is-collapsed{scrollbar-width:thin}
+/* Tablet and small screens: protect cards from overflow and preserve scannability. */
+@media(max-width:760px){
+  .page{padding-left:clamp(11px,3.6vw,20px)!important;padding-right:clamp(11px,3.6vw,20px)!important}
+  .search-panel,.workspace{border-radius:16px!important;margin-bottom:13px!important}
+  #workspace .results-top,.playlist-workspace .results-top{row-gap:10px!important}
+  .result-title{min-width:0!important}
+  #workspace .results-actions{width:100%!important;max-width:100%!important;justify-content:flex-end!important;overflow-x:auto!important;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+  #workspace .results-actions button{white-space:nowrap!important;flex-shrink:0!important}
+  #workspace .list-display-actions,#playlistSection .list-display-actions{margin:9px 0 10px!important}
+  .list-display-actions .list-toggle{min-height:36px;padding:0 12px;white-space:nowrap}
+  .grid,.playlist-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}
+  .channel-card,.playlist-card{min-width:0;box-shadow:none}
+  .channel-card{border-radius:12px;gap:8px}
+  .card-actions{min-width:0}
+  .card-actions button,.card-actions a{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .playlist-body{min-width:0}
+  .playlist-body h3{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .playlist-open,.playlist-copy-btn{width:100%;text-align:center;min-width:0}
+  .tool-row{gap:8px}
+  .tool-row .counter{white-space:nowrap}
+  .modal{max-width:calc(100vw - 24px);max-height:calc(100dvh - 28px);overflow-y:auto;overscroll-behavior:contain}
+  .modal-inner{padding:clamp(14px,4vw,20px)!important}
+  .toast-host{max-width:calc(100vw - 28px)}
+  .back-to-top{z-index:75}
+}
+@media(max-width:420px){
+  .page{padding-left:11px!important;padding-right:11px!important}
+  .search-panel,.workspace{padding:13px 11px!important}
+  .result-title{gap:8px!important}
+  .result-title .step{width:29px;height:29px}
+  #workspace #resultsTitle,.playlist-workspace h2{font-size:15px!important;white-space:nowrap}
+  .result-title>div p{font-size:10px;line-height:1.45}
+  .grid,.playlist-grid{gap:7px!important}
+  .channel-card{padding:8px!important}
+  .card-top{gap:6px!important}
+  .avatar{width:31px;height:31px}
+  .card-info h3{font-size:11px}
+  .card-info p{font-size:9px}
+  .playlist-cover{height:76px!important}
+  .playlist-body{padding:7px!important}
+  .playlist-body h3{font-size:11px!important}
+  .playlist-open,.playlist-copy-btn{font-size:9px!important;min-height:29px!important}
+  .back-to-top{bottom:calc(12px + env(safe-area-inset-bottom))}
+}
+@media(max-width:350px){
+  .playlist-cover{height:65px!important}
+  .topbar .brand{font-size:12px!important}
+  .topbar .auth-btn{font-size:8px!important;padding:0 3px!important}
+}
+@media(hover:none){
+  .channel-card:hover,.playlist-card:hover,.list-toggle:hover{transform:none!important}
+  button:active:not(:disabled){transform:scale(.99)}
+}
+@media(prefers-reduced-motion:reduce){
+  .search-panel,.workspace,.info-box,.channel-card,.playlist-card,.list-toggle,.input-wrap,
+  .playlist-open,.playlist-copy-btn{transition:none!important;animation:none!important}
+  button:active:not(:disabled){transform:none!important}
+}

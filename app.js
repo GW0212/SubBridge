@@ -981,25 +981,3 @@ for (const dialogId of ['authHelpDialog', 'guideDialog']) {
   setupList('channelGrid','channelListToggle');
   setupList('playlistGrid','playlistListToggle');
 })();
-
-// Align the expand controls with their corresponding reference buttons.
-(() => {
-  const pairs=[['channelListToggle','sortSelect'],['playlistListToggle','loadPlaylistsBtn']];
-  let raf=0;
-  const update=()=>{
-    for(const [toggleId,targetId] of pairs){
-      const button=document.getElementById(toggleId),target=document.getElementById(targetId);
-      const bar=button?.closest('.list-display-actions');
-      if(!bar||!target)continue;
-      const barRect=bar.getBoundingClientRect();
-      const targetRect=target.getBoundingClientRect();
-      const left=Math.max(0,Math.min(targetRect.left-barRect.left,barRect.width-button.offsetWidth));
-      bar.style.setProperty('--toggle-left',left+'px');
-    }
-  };
-  const schedule=()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(update);};
-  window.addEventListener('resize',schedule,{passive:true});
-  window.addEventListener('load',schedule,{once:true});
-  if(document.fonts?.ready)document.fonts.ready.then(schedule);
-  schedule();
-})();
