@@ -245,6 +245,7 @@ function render() {
     const initials=hangulInitials(ch.title);
     return tokens.every(token=>normalizedName.includes(token) || initials.includes(token));
   });
+  if($('sortSelect').value==='unsubscribed') list=list.filter(ch=>!state.subscribed.has(ch.id));
   switch($('sortSelect').value){case 'nameAsc':list.sort((a,b)=>a.title.localeCompare(b.title,'ko'));break;case 'nameDesc':list.sort((a,b)=>b.title.localeCompare(a.title,'ko'));break;case 'newest':list.sort((a,b)=>Date.parse(b.publishedAt || 0)-Date.parse(a.publishedAt || 0));break;default:list.sort((a,b)=>a.order-b.order);}
   $('filterCount').textContent = list.length.toLocaleString('ko-KR') + '개 표시';
   const root=$('channelGrid');root.replaceChildren();
@@ -270,7 +271,7 @@ function render() {
       direct.disabled=state.subscribed.has(ch.id);if(direct.disabled)direct.classList.add('done');
       direct.title='Google 계정 인증 후 웹사이트에서 구독';direct.addEventListener('click',()=>subscribe(ch.id,direct));
     }
-    const link=document.createElement('button');link.type='button';link.className='outlink primary-link';link.textContent='유튜브에서 구독 ↗';link.title='Chrome에서 설정한 YouTube 링크 열기 방식으로 이동';link.addEventListener('click',()=>openYoutubeSubscription(ch.id));
+    const link=document.createElement('a');link.className='outlink primary-link';link.href='https://www.youtube.com/channel/'+encodeURIComponent(ch.id)+'?sub_confirmation=1';link.target='_blank';link.rel='noopener noreferrer';link.textContent='유튜브에서 구독 ↗';link.title='일반 클릭 또는 마우스 휠 클릭으로 새 탭 열기';
     actions.append(link,direct);card.append(top,actions);fragment.append(card);
   });root.append(fragment);
 }
@@ -323,9 +324,9 @@ async function loadMyChannel() {
 async function refreshMine() {
   if(!state.token)return;
   const subIds=new Set();let cursor;
-  try {let pages=0;do{const r=await youtube('subscriptions',{part:'snippet',mine:true,maxResults:50,pageToken:cursor},{auth:true});(r.items||[]).forEach(x=>{if(x.snippet?.resourceId?.channelId)subIds.add(x.snippet.resourceId.channelId);});cursor=r.nextPageToken;pages++;}while(cursor && pages<20); // API 보호: 최대 1000개 점검
-  state.subscribed=subIds;if(state.items.length)render();
-  }catch(err){console.warn('기존 구독 여부 확인 실패:',errorString(err));}
+  try {let pages=0;do{const r=await youtube('subscriptions',{part:'snippet',mine:true,maxResults:50,pageToken:cursor},{auth:true});(r.items||[]).forEach(x=>{if(x.snippet?.resourceId?.channelId)subIds.add(x.snippet.resourceId.channelId);});cursor=r.nextPageToken;pages++;if(pages>=100 && cursor)throw new Error('구독 목록이 너무 많아 전체 확인을 완료하지 못했습니다.');}while(cursor); // 전체 페이지 조회 후에만 미구독 필터 적용
+  state.subscribed=subIds;if(state.items.length)render();return true;
+  }catch(err){console.warn('기존 구독 여부 확인 실패:',errorString(err));return false;}
 }
 async function subscribe(id, btn) {
  if (state.busy || tooSoon('subscribe:'+id, 8000)) return;
@@ -385,7 +386,7 @@ function showBulkDialog(){
   $('bulkTotal').textContent=channels.length.toLocaleString('ko-KR');
   $('bulkQuota').textContent=(channels.length*50).toLocaleString('ko-KR');
   $('bulkProgressArea').classList.add('hidden');
-  $('bulkSubscribeDescription').textContent=`현재 불러온 ${channels.length.toLocaleString('ko-KR')}개 채널을 연결할 YouTube 계정에서 구독합니다. 이미 구독 중인 채널은 가능한 한 건너뜁니다.`;
+  $('bulkSubscribeDescription').textContent=`대상 ${channels.length.toLocaleString('ko-KR')}개입니다. 구독 시작 전에 내 전체 구독 목록을 조회해 중복을 제외합니다. 화면의 초기 예상 최대 사용량은 모든 채널이 미구독인 경우의 상한이며 실제 구독 추가 요청 수와 다를 수 있습니다.`;
   $('bulkCancelBtn').textContent='닫기';
   $('bulkStartBtn').textContent='모두 구독 시작';
   $('bulkSubscribeDialog').showModal();
@@ -417,6 +418,7 @@ async function executeBulk(){
     }
     // The full authenticated subscription snapshot is required to avoid 50-unit duplicate attempts.
     const existing=await loadExistingForBulk();
+    if(state.bulk.cancel)throw new Error('기존 구독 확인 중 사용자가 작업을 중단했습니다.');
     state.subscribed=new Set(existing);
     render();
     bulkProgress(0,targets.length,0,0,0,'기존 구독을 확인했습니다.');
@@ -426,7 +428,10 @@ async function executeBulk(){
       if(existing.has(channel.id)){skipped++;done++;}
       else pending.push(channel);
     }
-    bulkProgress(done,targets.length,success,skipped,failed,'최대 3개 요청을 동시에 처리합니다.');
+    $('bulkQuota').textContent=(pending.length*50).toLocaleString('ko-KR');
+    $('bulkSubscribeDescription').textContent=`중복 확인 완료: 이미 구독 ${skipped.toLocaleString('ko-KR')}개 제외 · 신규 구독 ${pending.length.toLocaleString('ko-KR')}개 · 신규 구독 요청 예상 ${ (pending.length*50).toLocaleString('ko-KR') }유닛. 기존 구독 확인용 조회에는 페이지당 약 1유닛이 별도로 소모됩니다.`;
+    bulkProgress(done,targets.length,success,skipped,failed,pending.length?'중복 제외 후 새 채널만 요청합니다. 최대 3개 동시 처리.':'모든 채널을 이미 구독 중입니다. 추가 구독 요청 0건.');
+    if(!pending.length){render();toast(`이미 ${skipped}개 모두 구독 중입니다. 구독 추가 요청 0건.`, 'success');return;}
     let nextIndex=0,halt=false,started=0;
     const stopReasons=['quotaExceeded','dailyLimitExceeded','rateLimitExceeded','userRateLimitExceeded','subscriptionForbidden','insufficientPermissions','forbidden','PERMISSION_DENIED'];
     async function worker(){
@@ -436,6 +441,8 @@ async function executeBulk(){
         if(started++ < BULK_CONCURRENCY-1)await bulkSleep(BULK_LAUNCH_GAP_MS);
         if(halt || state.bulk.cancel)break;
         try{
+          // Guard again before any write, including races with other in-page subscriptions.
+          if(existing.has(channel.id) || state.subscribed.has(channel.id)){skipped++;done++;bulkProgress(done,targets.length,success,skipped,failed,'중복 구독 요청 생략');continue;}
           const result=await youtube('subscriptions',{part:'snippet'},{auth:true,method:'POST',body:{snippet:{resourceId:{kind:'youtube#channel',channelId:channel.id}}}});
           if(!result.id)throw new Error('YouTube가 구독 완료 응답을 반환하지 않았습니다.');
           existing.add(channel.id);state.subscribed.add(channel.id);success++;consecutive=0;
@@ -873,7 +880,17 @@ async function refreshLatestSubscriptions() {
   }
 }
 $('refreshBtn').addEventListener('click', refreshLatestSubscriptions);
-$('moreBtn').addEventListener('click',()=>fetchPage(false));$('exportBtn').addEventListener('click',exportCsv);$('filterInput').addEventListener('input',render);$('sortSelect').addEventListener('change',render);
+$('moreBtn').addEventListener('click',()=>fetchPage(false));$('exportBtn').addEventListener('click',exportCsv);$('filterInput').addEventListener('input',render);
+$('sortSelect').addEventListener('change',async()=>{
+  const select=$('sortSelect');
+  if(select.value==='unsubscribed'){
+    if(!state.token || Date.now()>=state.expires){select.value='default';render();toast('구독하지 않은 채널을 확인하려면 Google 계정을 연결해 주세요.','error');return;}
+    select.disabled=true;
+    try{const complete=await refreshMine();if(!complete){select.value='default';toast('구독 목록을 완전히 확인하지 못해 필터를 적용하지 않았습니다.','error');}}
+    finally{select.disabled=false;}
+  }
+  render();
+});
 if(!setting('API_KEY')) {$('resultsSubtitle').textContent='사이트 API 설정이 필요합니다.';}
 })();
 
@@ -963,4 +980,26 @@ for (const dialogId of ['authHelpDialog', 'guideDialog']) {
   }
   setupList('channelGrid','channelListToggle');
   setupList('playlistGrid','playlistListToggle');
+})();
+
+// Align the expand controls with their corresponding reference buttons.
+(() => {
+  const pairs=[['channelListToggle','sortSelect'],['playlistListToggle','loadPlaylistsBtn']];
+  let raf=0;
+  const update=()=>{
+    for(const [toggleId,targetId] of pairs){
+      const button=document.getElementById(toggleId),target=document.getElementById(targetId);
+      const bar=button?.closest('.list-display-actions');
+      if(!bar||!target)continue;
+      const barRect=bar.getBoundingClientRect();
+      const targetRect=target.getBoundingClientRect();
+      const left=Math.max(0,Math.min(targetRect.left-barRect.left,barRect.width-button.offsetWidth));
+      bar.style.setProperty('--toggle-left',left+'px');
+    }
+  };
+  const schedule=()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(update);};
+  window.addEventListener('resize',schedule,{passive:true});
+  window.addEventListener('load',schedule,{once:true});
+  if(document.fonts?.ready)document.fonts.ready.then(schedule);
+  schedule();
 })();

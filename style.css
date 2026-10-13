@@ -486,3 +486,11 @@ body{min-height:100vh;min-height:100dvh}
   #workspace .results-actions{justify-content:flex-end!important;gap:3px!important}
   #workspace #resultsTitle{font-size:15px!important}
 }
+
+/* Six requested UI refinements: uncropped thumbnails and aligned controls. */
+.playlist-cover{height:106px!important;display:flex!important;align-items:center!important;justify-content:center!important;background:#1a2432!important;overflow:hidden!important}
+.playlist-cover img{display:block!important;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important}
+.list-display-actions{justify-content:flex-start!important;flex-wrap:nowrap!important}
+.list-display-actions .list-toggle{margin-left:var(--toggle-left,0px)!important;flex:0 0 auto}
+@media(max-width:760px){.playlist-cover{height:83px!important}}
+@media(max-width:420px){.playlist-cover{height:69px!important}}
